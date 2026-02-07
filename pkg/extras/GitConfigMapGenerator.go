@@ -33,9 +33,12 @@ type GitConfigMapGeneratorPlugin struct {
 }
 
 // Config configures the generator with the functionConfig passed in config.
-func (p *GitConfigMapGeneratorPlugin) Config(h *resmap.PluginHelpers, config []byte) (err error) {
+func (p *GitConfigMapGeneratorPlugin) Config(h *resmap.PluginHelpers, config []byte) error {
 	p.ConfigMapArgs = types.ConfigMapArgs{}
-	err = yaml.Unmarshal(config, p)
+	err := yaml.Unmarshal(config, p)
+	if err != nil {
+		return fmt.Errorf("error while unmarshaling configuration: %w", err)
+	}
 	if p.ConfigMapArgs.Name == "" {
 		p.ConfigMapArgs.Name = p.Name
 	}
@@ -43,10 +46,10 @@ func (p *GitConfigMapGeneratorPlugin) Config(h *resmap.PluginHelpers, config []b
 		p.ConfigMapArgs.Namespace = p.Namespace
 	}
 	p.h = h
-	return
+	return nil
 }
 
-// Generate generates the config map
+// Generate generates the config map.
 func (p *GitConfigMapGeneratorPlugin) Generate() (resmap.ResMap, error) {
 	// Add git repository properties
 
@@ -54,7 +57,6 @@ func (p *GitConfigMapGeneratorPlugin) Generate() (resmap.ResMap, error) {
 	if err != nil {
 		return resmap.New(), errors.WrapPrefixf(err, "opening git repo")
 	}
-	// TODO: Should come from config
 	remoteName := p.RemoteName
 	if remoteName == "" {
 		remoteName = "origin"
@@ -64,7 +66,7 @@ func (p *GitConfigMapGeneratorPlugin) Generate() (resmap.ResMap, error) {
 		return resmap.New(), errors.WrapPrefixf(err, "getting remote %s", remoteName)
 	}
 
-	p.ConfigMapArgs.KvPairSources.LiteralSources = append(p.ConfigMapArgs.KvPairSources.LiteralSources,
+	p.LiteralSources = append(p.LiteralSources,
 		fmt.Sprintf("repoURL=%s", origin.Config().URLs[0]))
 
 	head, err := repo.Head()
@@ -72,11 +74,16 @@ func (p *GitConfigMapGeneratorPlugin) Generate() (resmap.ResMap, error) {
 		return resmap.New(), errors.WrapPrefixf(err, "getting current branch")
 	}
 
-	p.ConfigMapArgs.KvPairSources.LiteralSources = append(p.ConfigMapArgs.KvPairSources.LiteralSources,
+	p.LiteralSources = append(p.LiteralSources,
 		fmt.Sprintf("targetRevision=%s", head.Name().Short()))
 
-	return p.h.ResmapFactory().FromConfigMapArgs(
+	var result resmap.ResMap
+	result, err = p.h.ResmapFactory().FromConfigMapArgs(
 		kv.NewLoader(p.h.Loader(), p.h.Validator()), p.ConfigMapArgs)
+	if err != nil {
+		return resmap.New(), errors.WrapPrefixf(err, "creating config map from args")
+	}
+	return result, nil
 }
 
 // NewGitConfigMapGeneratorPlugin returns a newly created GitConfigMapGenerator.

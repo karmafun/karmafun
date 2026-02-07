@@ -1,7 +1,7 @@
 // cSpell: disable
 module github.com/karmafun/karmafun
 
-go 1.19
+go 1.25
 
 require (
 	github.com/go-git/go-git/v5 v5.6.1

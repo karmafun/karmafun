@@ -1,5 +1,7 @@
 package utils
 
+// cSpell: words konfig
+
 import "sigs.k8s.io/kustomize/api/konfig"
 
 const (

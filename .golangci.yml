@@ -24,6 +24,12 @@ formatters:
     - gofumpt
     - golines
   settings:
+    gofmt:
+      rewrite-rules:
+        - pattern: "interface{}"
+          replacement: "any"
+        - pattern: "a[b:len(a)]"
+          replacement: "a[b:]"
     goimports:
       local-prefixes:
         - github.com/karmafun/karmafun
@@ -32,6 +38,8 @@ formatters:
         - standard
         - default
         - prefix(github.com/karmafun/karmafun)
+    golines:
+      max-len: 120
 
 linters:
   enable:

@@ -1,5 +1,7 @@
 package extras
 
+// cSpell: words kioutil wrapcheck
+
 import (
 	"bytes"
 	"encoding/base64"
@@ -35,7 +37,7 @@ type Extender interface {
 	Get(path []string) ([]byte, error)
 	// Set modifies the data structure at path with value. Value can either be
 	// in the appropriate encoding or can be encoded by the Extender. Please
-	// see the Extender documentation to see how the the value is treated.
+	// see the Extender documentation to see how the value is treated.
 	Set(path []string, value any) error
 }
 
@@ -59,8 +61,6 @@ func (e *ExtendedSegment) String() string {
 	}
 }
 
-type any interface{}
-
 // ExtenderType enumerates the existing extender types.
 //
 //go:generate go run golang.org/x/tools/cmd/stringer -type=ExtenderType
@@ -79,7 +79,8 @@ const (
 // stringToExtenderTypeMap maps encoding names to the corresponding extender
 var stringToExtenderTypeMap map[string]ExtenderType
 
-func init() { //nolint:gochecknoinits
+//nolint:gochecknoinits // mimics the kustomize pattern used for plugins.
+func init() {
 	stringToExtenderTypeMap = makeStringToExtenderTypeMap()
 }
 
@@ -98,12 +99,12 @@ func getByteValue(value any) []byte {
 
 // makeStringToExtenderTypeMap makes a map to get the appropriate
 // [ExtenderType] given its name.
-func makeStringToExtenderTypeMap() (result map[string]ExtenderType) {
-	result = make(map[string]ExtenderType, 3)
+func makeStringToExtenderTypeMap() map[string]ExtenderType {
+	result := make(map[string]ExtenderType, 3)
 	for k := range ExtenderFactories {
 		result[strings.Replace(strings.ToLower(k.String()), "extender", "", 1)] = k
 	}
-	return
+	return result
 }
 
 // getExtenderType returns the appropriate [ExtenderType] for the passed
@@ -138,17 +139,20 @@ func parsePayload(payload []byte) (*yaml.RNode, error) {
 		PreserveSeqIndent:     true,
 		WrapBareSeqNode:       true,
 	}).Read()
-
 	if err != nil {
-		return nil, errors.WrapPrefixf(err, "while reading payload")
+		return nil, fmt.Errorf("while reading payload: %w", err)
 	}
 	return nodes[0], nil
 }
 
 // SetPayload parses payload an sets the extender internal state
-func (e *yamlExtender) SetPayload(payload []byte) (err error) {
+func (e *yamlExtender) SetPayload(payload []byte) error {
+	var err error
 	e.node, err = parsePayload(payload)
-	return
+	if err != nil {
+		return fmt.Errorf("while parsing payload: %w", err)
+	}
+	return nil
 }
 
 // serializeNode serialize one node into YAML
@@ -178,7 +182,7 @@ func Lookup(node *yaml.RNode, path []string, kind yaml.Kind) (*yaml.RNode, error
 	// TODO: consider using yaml.PathGetter instead
 	node, err := unwrapSeqNode(node).Pipe(&yaml.PathGetter{Path: path, Create: kind})
 	if err != nil {
-		return nil, errors.WrapPrefixf(err, "while getting path %s", strings.Join(path, "."))
+		return nil, fmt.Errorf("while getting path %s: %w", strings.Join(path, "."), err)
 	}
 
 	return node, nil
@@ -208,7 +212,6 @@ func (e *yamlExtender) Get(path []string) ([]byte, error) {
 
 // setValue sets value at path on node
 func setValue(node *yaml.RNode, path []string, value any) error {
-
 	kind := yaml.ScalarNode
 	if v, ok := value.(*yaml.Node); ok {
 		kind = v.Kind
@@ -219,15 +222,17 @@ func setValue(node *yaml.RNode, path []string, value any) error {
 		return fmt.Errorf("error fetching elements in replacement target: %w", err)
 	}
 
-	if target.YNode().Kind == yaml.ScalarNode {
+	switch target.YNode().Kind {
+	case yaml.ScalarNode:
 		target.YNode().Value = string(getByteValue(value))
-	} else {
-		if target.YNode().Kind == kind {
-			v, _ := value.(*yaml.Node)
+	case kind:
+		if v, isNode := value.(*yaml.Node); isNode {
 			target.SetYNode(v)
-		} else {
-			return fmt.Errorf("setting non yaml object in place of object of type %s at path %s", target.YNode().Tag, strings.Join(path, "."))
 		}
+	case yaml.DocumentNode, yaml.SequenceNode, yaml.MappingNode, yaml.AliasNode:
+	default:
+		return fmt.Errorf("setting non yaml object in place of object of type %s at path %s",
+			target.YNode().Tag, strings.Join(path, "."))
 	}
 	return nil
 }
@@ -258,7 +263,7 @@ type base64Extender struct {
 func (e *base64Extender) SetPayload(payload []byte) error {
 	decoded, err := base64.StdEncoding.DecodeString(string(payload))
 	if err != nil {
-		return errors.WrapPrefixf(err, "while decoding base64")
+		return fmt.Errorf("while decoding base64: %w", err)
 	}
 	e.decoded = decoded
 	return nil
@@ -320,7 +325,7 @@ func (e *regexExtender) SetPayload(payload []byte) error {
 
 // GetPayload returns the text payload
 func (e *regexExtender) GetPayload() ([]byte, error) {
-	return []byte(e.text), nil
+	return e.text, nil
 }
 
 // Get returns the text matched by the regexp contained in the first segment of
@@ -377,7 +382,7 @@ func (e *regexExtender) Set(path []string, value any) error {
 
 	if matched {
 		if start < len(e.text) {
-			b.Write(e.text[start:len(e.text)])
+			b.Write(e.text[start:])
 		}
 		e.text = b.Bytes()
 	}
@@ -422,9 +427,16 @@ type jsonExtender struct {
 }
 
 // SetPayload parses the JSON payload and stores it internally as a yaml.RNode.
-func (e *jsonExtender) SetPayload(payload []byte) (err error) {
+func (e *jsonExtender) SetPayload(payload []byte) error {
+	var err error
 	e.node, err = parsePayload(payload)
-	return
+	return err
+}
+
+var annotationsToClearForJSON = []string{
+	kioutil.IndexAnnotation,
+	kioutil.LegacyIndexAnnotation, //nolint:staticcheck // still in use.
+	kioutil.SeqIndentAnnotation,
 }
 
 // getJSONPayload returns the JSON payload for the passed node.
@@ -433,18 +445,28 @@ func (e *jsonExtender) SetPayload(payload []byte) (err error) {
 // a wrapped JSON array.
 func getJSONPayload(node *yaml.RNode) ([]byte, error) {
 	var b bytes.Buffer
+	var err error
 	if node.YNode().Kind == yaml.MappingNode {
 		node = node.Copy()
-		node.Pipe(yaml.ClearAnnotation(kioutil.IndexAnnotation))
-		node.Pipe(yaml.ClearAnnotation(kioutil.LegacyIndexAnnotation))
-		node.Pipe(yaml.ClearAnnotation(kioutil.SeqIndentAnnotation))
-		yaml.ClearEmptyAnnotations(node)
+		for _, annotation := range annotationsToClearForJSON {
+			_, err = node.Pipe(yaml.ClearAnnotation(annotation))
+			if err != nil {
+				return nil, fmt.Errorf("while clearing annotation %s: %w", annotation, err)
+			}
+		}
+		err = yaml.ClearEmptyAnnotations(node)
+		if err != nil {
+			return nil, fmt.Errorf("while clearing empty annotations: %w", err)
+		}
 	}
 	encoder := json.NewEncoder(&b)
 	encoder.SetIndent("", "  ")
-	err := errors.Wrap(encoder.Encode(node))
+	err = errors.Wrap(encoder.Encode(node))
+	if err != nil {
+		return nil, fmt.Errorf("while encoding to JSON: %w", err)
+	}
 
-	return b.Bytes(), err
+	return b.Bytes(), nil
 }
 
 // GetPayload returns the payload as a serialized JSON object
@@ -482,16 +504,15 @@ type tomlExtender struct {
 
 // SetPayload sets the internal state with the TOML source payload.
 func (e *tomlExtender) SetPayload(payload []byte) error {
-
-	m := map[string]interface{}{}
+	m := map[string]any{}
 	err := toml.Unmarshal(payload, &m)
 	if err != nil {
-		return errors.WrapPrefixf(err, "while un-marshalling toml")
+		return fmt.Errorf("while un-marshaling toml: %w", err)
 	}
 
 	e.node, err = yaml.FromMap(m)
 	if err != nil {
-		return errors.WrapPrefixf(err, "while converting into yaml")
+		return fmt.Errorf("while converting into yaml: %w", err)
 	}
 
 	return nil
@@ -503,9 +524,14 @@ func (e *tomlExtender) SetPayload(payload []byte) error {
 func getTOMLPayload(node *yaml.RNode) ([]byte, error) {
 	m, err := node.Map()
 	if err != nil {
-		return nil, errors.WrapPrefixf(err, "while encoding to map")
+		return nil, fmt.Errorf("while encoding to map: %w", err)
 	}
-	return toml.Marshal(m)
+	var result []byte
+	result, err = toml.Marshal(m)
+	if err != nil {
+		return nil, fmt.Errorf("while encoding to toml: %w", err)
+	}
+	return result, nil
 }
 
 // GetPayload return the current payload as a TOML snippet.
@@ -542,10 +568,13 @@ type iniExtender struct {
 }
 
 // SetPayload parses payload as a INI file and set the internal state.
-func (e *iniExtender) SetPayload(payload []byte) (err error) {
-
+func (e *iniExtender) SetPayload(payload []byte) error {
+	var err error
 	e.file, err = ini.Load(payload)
-	return err
+	if err != nil {
+		return fmt.Errorf("while parsing ini: %w", err)
+	}
+	return nil
 }
 
 // GetPayload returns the current state as an ini file.
@@ -573,7 +602,7 @@ func (e *iniExtender) keyFromPath(path []string) (*ini.Key, error) {
 func (e *iniExtender) Get(path []string) ([]byte, error) {
 	k, err := e.keyFromPath(path)
 	if err != nil {
-		return nil, fmt.Errorf("while getting key at path %s", strings.Join(path, "."))
+		return nil, fmt.Errorf("while getting key at path %s: %w", strings.Join(path, "."), err)
 	}
 	return []byte(k.String()), nil
 }
@@ -582,7 +611,7 @@ func (e *iniExtender) Get(path []string) ([]byte, error) {
 func (e *iniExtender) Set(path []string, value any) error {
 	k, err := e.keyFromPath(path)
 	if err != nil {
-		return fmt.Errorf("while getting key at path %s", strings.Join(path, "."))
+		return fmt.Errorf("while getting key at path %s: %w", strings.Join(path, "."), err)
 	}
 
 	k.SetValue(string(getByteValue(value)))
@@ -627,12 +656,12 @@ func (path *ExtendedSegment) Extender(payload []byte) (Extender, error) {
 	if f, ok := ExtenderFactories[bpt]; ok {
 		result := f()
 		if err := result.SetPayload(payload); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("while setting payload for extender %s: %w", path.Encoding, err)
 		}
 
 		return result, nil
 	}
-	return nil, errors.Errorf("unable to load extender %s", path.Encoding)
+	return nil, fmt.Errorf("unable to load extender %s", path.Encoding)
 }
 
 ///////////////
@@ -641,33 +670,34 @@ func (path *ExtendedSegment) Extender(payload []byte) (Extender, error) {
 
 // splitExtendedPath fills extensions with the ExtendedSegments found in path
 // and returns the path prefix. This method is used by [NewExtendedPath]
-func splitExtendedPath(path []string, extensions *[]*ExtendedSegment) (basePath []string, err error) {
-
+func splitExtendedPath(path []string, extensions *[]*ExtendedSegment) ([]string, error) {
 	if len(path) == 0 {
-		return
+		return nil, nil
 	}
 
+	var err error
+	var basePath []string
 	for i, p := range path {
 		if strings.HasPrefix(p, "!!") {
 			extension := ExtendedSegment{Encoding: p[2:]}
 			if extension.Encoding == "" {
 				err = fmt.Errorf("extension cannot be empty")
-				return
+				return nil, err
 			}
 			*extensions = append(*extensions, &extension)
 			var remainder []string
 			remainder, err = splitExtendedPath(path[i+1:], extensions)
 			if err != nil {
-				err = errors.WrapPrefixf(err, "while getting subpath of extension %s", extension.Encoding)
-				return
+				err = fmt.Errorf("while getting subpath of extension %s: %w", extension.Encoding, err)
+				return nil, err
 			}
 			extension.Path = remainder
-			return
+			return basePath, nil
 		} else {
 			basePath = append(basePath, p)
 		}
 	}
-	return
+	return basePath, nil
 }
 
 // ExtendedPath contains all the paths segments of a path.
@@ -687,10 +717,8 @@ func splitExtendedPath(path []string, extensions *[]*ExtendedSegment) (basePath 
 //	     &ExtendedSegment{Encoding: "yaml", Path: []string{"common", "URL"}},
 //	 }
 type ExtendedPath struct {
-	// ResourcePath is The KRM portion of the path
-	ResourcePath []string
-	// ExtendedSegments contains all extended path segments
 	ExtendedSegments *[]*ExtendedSegment
+	ResourcePath     []string
 }
 
 // NewExtendedPath creates an [ExtendedPath] from the split path segments in paths.
@@ -698,7 +726,7 @@ func NewExtendedPath(path []string) (*ExtendedPath, error) {
 	extensions := []*ExtendedSegment{}
 	prefix, err := splitExtendedPath(path, &extensions)
 	if err != nil {
-		return nil, errors.WrapPrefixf(err, "while getting extended path")
+		return nil, fmt.Errorf("while getting extended path: %w", err)
 	}
 
 	return &ExtendedPath{ResourcePath: prefix, ExtendedSegments: &extensions}, nil
@@ -731,29 +759,27 @@ func (ep *ExtendedPath) applyIndex(index int, input []byte, value *yaml.Node) ([
 	segment := (*ep.ExtendedSegments)[index]
 	extender, err := segment.Extender(input)
 	if err != nil {
-		return nil, errors.WrapPrefixf(err, "creating extender at index: %d", index)
+		return nil, fmt.Errorf("creating extender at index: %d: %w", index, err)
 	}
 
-	if index == len(*ep.ExtendedSegments)-1 {
-		err := extender.Set(segment.Path, value)
+	var newValue any
+	newValue = value
+	if index != len(*ep.ExtendedSegments)-1 {
+		var nextInput []byte
+		nextInput, err = extender.Get(segment.Path)
 		if err != nil {
-			return nil, errors.WrapPrefixf(err, "setting value on path %s", segment.String())
+			return nil, fmt.Errorf("getting value on path %s: %w", segment.String(), err)
 		}
-	} else {
-		nextInput, err := extender.Get(segment.Path)
-		if err != nil {
-			return nil, errors.WrapPrefixf(err, "getting value on path %s", segment.String())
-		}
-		newValue, err := ep.applyIndex(index+1, nextInput, value)
+		newValue, err = ep.applyIndex(index+1, nextInput, value)
 		if err != nil {
 			return nil, err
 		}
-
-		err = extender.Set(segment.Path, newValue)
-		if err != nil {
-			return nil, errors.WrapPrefixf(err, "setting value on path %s", segment.String())
-		}
 	}
+	err = extender.Set(segment.Path, newValue)
+	if err != nil {
+		return nil, fmt.Errorf("setting value on path %s: %w", segment.String(), err)
+	}
+	//nolint:wrapcheck // We want to preserve the error type returned by the extender
 	return extender.GetPayload()
 }
 
@@ -764,7 +790,7 @@ func (ep *ExtendedPath) applyIndex(index int, input []byte, value *yaml.Node) ([
 // traverse it until the last. When reaching the last, it sets value
 // in the appropriate path. It then unwinds the paths and save the modified
 // value in the target.
-func (ep *ExtendedPath) Apply(target *yaml.RNode, value *yaml.RNode) error {
+func (ep *ExtendedPath) Apply(target, value *yaml.RNode) error {
 	if target.YNode().Kind != yaml.ScalarNode {
 		return fmt.Errorf("extended path only works on scalar nodes")
 	}
@@ -774,7 +800,7 @@ func (ep *ExtendedPath) Apply(target *yaml.RNode, value *yaml.RNode) error {
 		input := []byte(target.YNode().Value)
 		output, err := ep.applyIndex(0, input, value.YNode())
 		if err != nil {
-			return errors.WrapPrefixf(err, "applying value on extended segment %s", ep.String())
+			return fmt.Errorf("applying value on extended segment %s: %w", ep.String(), err)
 		}
 
 		outValue = string(output)

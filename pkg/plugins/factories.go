@@ -1,17 +1,20 @@
 package plugins
 
+// cSpell: words filesys
 import (
+	"fmt"
 	"os"
 
-	"github.com/karmafun/karmafun/pkg/extras"
+	//nolint:staticcheck // mimics the kustomize pattern used for plugins.
 	"sigs.k8s.io/kustomize/api/builtins"
-	"sigs.k8s.io/kustomize/api/filesys"
 	fLdr "sigs.k8s.io/kustomize/api/loader"
 	"sigs.k8s.io/kustomize/api/provider"
 	"sigs.k8s.io/kustomize/api/resmap"
 	"sigs.k8s.io/kustomize/api/types"
-	"sigs.k8s.io/kustomize/kyaml/errors"
+	"sigs.k8s.io/kustomize/kyaml/filesys"
 	"sigs.k8s.io/kustomize/kyaml/resid"
+
+	"github.com/karmafun/karmafun/pkg/extras"
 )
 
 //go:generate go run golang.org/x/tools/cmd/stringer -type=BuiltinPluginType
@@ -45,19 +48,19 @@ const (
 
 var stringToBuiltinPluginTypeMap map[string]BuiltinPluginType
 
-func init() { //nolint:gochecknoinits
+func init() { //nolint:gochecknoinits // kustomize pattern used for plugins.
 	stringToBuiltinPluginTypeMap = makeStringToBuiltinPluginTypeMap()
 }
 
-func makeStringToBuiltinPluginTypeMap() (result map[string]BuiltinPluginType) {
-	result = make(map[string]BuiltinPluginType, 23)
+func makeStringToBuiltinPluginTypeMap() map[string]BuiltinPluginType {
+	result := make(map[string]BuiltinPluginType, 23)
 	for k := range TransformerFactories {
 		result[k.String()] = k
 	}
 	for k := range GeneratorFactories {
 		result[k.String()] = k
 	}
-	return
+	return result
 }
 
 func GetBuiltinPluginType(n string) BuiltinPluginType {
@@ -75,7 +78,7 @@ type MultiTransformer struct {
 func (t *MultiTransformer) Transform(m resmap.ResMap) error {
 	for _, transformer := range t.transformers {
 		if err := transformer.Transform(m); err != nil {
-			return err
+			return fmt.Errorf("transforming resources: %w", err)
 		}
 	}
 	return nil
@@ -84,7 +87,7 @@ func (t *MultiTransformer) Transform(m resmap.ResMap) error {
 func (t *MultiTransformer) Config(h *resmap.PluginHelpers, b []byte) error {
 	for _, transformer := range t.transformers {
 		if err := transformer.Config(h, b); err != nil {
-			return err
+			return fmt.Errorf("configuring transformer: %w", err)
 		}
 	}
 	return nil
@@ -136,7 +139,7 @@ func MakeBuiltinPlugin(r resid.Gvk) (resmap.Configurable, error) {
 	if f, ok := GeneratorFactories[bpt]; ok {
 		return f(), nil
 	}
-	return nil, errors.Errorf("unable to load builtin %s", r)
+	return nil, fmt.Errorf("unable to load builtin %s", r)
 }
 
 func NewPluginHelpers() (*resmap.PluginHelpers, error) {
@@ -145,7 +148,7 @@ func NewPluginHelpers() (*resmap.PluginHelpers, error) {
 	fSys := filesys.MakeFsOnDisk()
 	path, err := os.Getwd()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("getting current working directory: %w", err)
 	}
 	resmapFactory := resmap.NewFactory(depProvider.GetResourceFactory())
 	resmapFactory.RF().IncludeLocalConfigs = true
@@ -154,7 +157,7 @@ func NewPluginHelpers() (*resmap.PluginHelpers, error) {
 
 	ldr, err := fLdr.NewLoader(lr, path, fSys)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("creating loader: %w", err)
 	}
 
 	config := types.DisabledPluginConfig()

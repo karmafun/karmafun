@@ -30,6 +30,10 @@ repos:
         #   )$
       - id: check-merge-conflict
       - id: detect-private-key
+        exclude: |
+          (?x)^(
+            tests/.*/secret.*\.yaml
+          )$
       - id: check-added-large-files
         args: ["--maxkb=10240"] # 10 MB
 

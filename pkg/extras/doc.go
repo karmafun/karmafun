@@ -15,16 +15,16 @@ consider the following resource snippet:
 	  parameters:
 	    - name: common.targetRevision
 	      # This resource is accessible by traditional transformer
-	      value: deploy/citest
+	      value: deploy/prod
 	    - name: common.repoURL
 	      value: https://github.com/antoinemartin/autocloud.git
 	  values: |
-	    uninode: true
+	    mono_node: true
 	    apps:
 	      enabled: true
 	    common:
 	      # This embedded resource is not accessible
-	      targetRevision: deploy/citest
+	      targetRevision: deploy/prod
 	      repoURL: https://github.com/antoinemartin/autocloud.git
 
 In the above, the common.targetRevision property of the yaml embedded in the

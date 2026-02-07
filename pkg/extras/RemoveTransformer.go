@@ -5,7 +5,6 @@ import (
 
 	"sigs.k8s.io/kustomize/api/resmap"
 	"sigs.k8s.io/kustomize/api/types"
-	"sigs.k8s.io/kustomize/kyaml/errors"
 	"sigs.k8s.io/yaml"
 )
 
@@ -13,13 +12,12 @@ type RemoveTransformerPlugin struct {
 	Targets []*types.Selector `json:"targets,omitempty" yaml:"targets,omitempty"`
 }
 
-func (p *RemoveTransformerPlugin) Config(
-	h *resmap.PluginHelpers, c []byte) (err error) {
-	err = yaml.Unmarshal(c, p)
+func (p *RemoveTransformerPlugin) Config(_ *resmap.PluginHelpers, c []byte) error {
+	err := yaml.Unmarshal(c, p)
 	if err != nil {
-		return err
+		return fmt.Errorf("while configuring RemoveTransformerPlugin: %w", err)
 	}
-	return err
+	return nil
 }
 
 func (p *RemoveTransformerPlugin) Transform(m resmap.ResMap) error {
@@ -29,12 +27,12 @@ func (p *RemoveTransformerPlugin) Transform(m resmap.ResMap) error {
 	for _, t := range p.Targets {
 		resources, err := m.Select(*t)
 		if err != nil {
-			return errors.WrapPrefixf(err, "while selecting target %s", t.String())
+			return fmt.Errorf("while selecting target %s: %w", t.String(), err)
 		}
 		for _, r := range resources {
 			err = m.Remove(r.CurId())
 			if err != nil {
-				return errors.WrapPrefixf(err, "while removing resource %s", r.CurId().String())
+				return fmt.Errorf("while removing resource %s: %w", r.CurId().String(), err)
 			}
 		}
 	}

@@ -23,22 +23,22 @@ const (
 
 var stringToEncodingTypeMap map[string]EncodingType
 
-func init() { //nolint:gochecknoinits
+func init() { //nolint:gochecknoinits // mimics the kustomize pattern used for plugins.
 	stringToEncodingTypeMap = makeStringToEncodingTypeMap()
 }
 
 // makeStringToEncodingTypeMap makes a map to get the appropriate
 // [EncodingType] given its name.
-func makeStringToEncodingTypeMap() (result map[string]EncodingType) {
-	result = make(map[string]EncodingType, 3)
+func makeStringToEncodingTypeMap() map[string]EncodingType {
+	result := make(map[string]EncodingType, 3)
 	for k := range EncoderFactories {
 		result[strings.Replace(strings.ToLower(k.String()), "encoding", "", 1)] = k
 	}
-	return
+	return result
 }
 
 // getEncodingType returns the appropriate [EncodingType] for the passed
-// encoding type name
+// encoding type name.
 func getEncodingType(n string) EncodingType {
 	result, ok := stringToEncodingTypeMap[strings.ToLower(n)]
 	if ok {
@@ -47,10 +47,10 @@ func getEncodingType(n string) EncodingType {
 	return UnknownEncoding
 }
 
-// Encoder is an encoder function
+// Encoder is an encoder function.
 type Encoder func(value string) (string, error)
 
-// EncodeBase64 encodes value in base64
+// EncodeBase64 encodes value in base64.
 func EncodeBase64(value string) (string, error) {
 	return base64.StdEncoding.EncodeToString([]byte(value)), nil
 }
@@ -62,7 +62,7 @@ func EncodeBcrypt(value string) (string, error) {
 	return string(encoded), err
 }
 
-// EncodeHex returns the hex string of value
+// EncodeHex returns the hex string of value.
 func EncodeHex(value string) (string, error) {
 	return hex.EncodeToString([]byte(value)), nil
 }
@@ -75,7 +75,7 @@ var EncoderFactories = map[EncodingType]Encoder{
 	HexEncoding:    EncodeHex,
 }
 
-func GetEncodedValue(value string, encoding string) (string, error) {
+func GetEncodedValue(value, encoding string) (string, error) {
 	et := getEncodingType(encoding)
 	if f, ok := EncoderFactories[et]; ok {
 		return f(value)

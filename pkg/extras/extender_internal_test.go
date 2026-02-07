@@ -85,6 +85,7 @@ func (s *ExtenderTestSuite) TestRegexExtender() {
 }
 
 func (s *ExtenderTestSuite) TestBase64Extender() {
+	//nolint:lll // Base64 string, hard to break into multiple lines
 	encoded := "UHVia2V5QWNjZXB0ZWRLZXlUeXBlcyArc3NoLXJzYQpIb3N0IHNpc2hzZXJ2ZXIKICBIb3N0TmFtZSBob2xlcHVuY2guaW4KICBQb3J0IDIyMjIKICBCYXRjaE1vZGUgeWVzCiAgSWRlbnRpdHlGaWxlIH4vLnNzaF9rZXlzL2lkX3JzYQogIElkZW50aXRpZXNPbmx5IHllcwogIExvZ0xldmVsIEVSUk9SCiAgU2VydmVyQWxpdmVJbnRlcnZhbCAxMAogIFNlcnZlckFsaXZlQ291bnRNYXggMgogIFJlbW90ZUNvbW1hbmQgc25pLXByb3h5PXRydWUKICBSZW1vdGVGb3J3YXJkIGNpdGVzdC5ob2xlcHVuY2guaW46NDQzIHRyYWVmaWsudHJhZWZpay5zdmM6NDQzCg=="
 	decodedExpected := dedent.Dedent(`
 	PubkeyAcceptedKeyTypes +ssh-rsa
@@ -101,6 +102,7 @@ func (s *ExtenderTestSuite) TestBase64Extender() {
 	  RemoteForward citest.holepunch.in:443 traefik.traefik.svc:443
 	`)[1:]
 
+	//nolint:lll // Base64 string, hard to break into multiple lines
 	modifiedEncoded := "UHVia2V5QWNjZXB0ZWRLZXlUeXBlcyArc3NoLXJzYQpIb3N0IHNpc2hzZXJ2ZXIKICBIb3N0TmFtZSBrYXJtYWZ1bi5kZXYKICBQb3J0IDIyMjIKICBCYXRjaE1vZGUgeWVzCiAgSWRlbnRpdHlGaWxlIH4vLnNzaF9rZXlzL2lkX3JzYQogIElkZW50aXRpZXNPbmx5IHllcwogIExvZ0xldmVsIEVSUk9SCiAgU2VydmVyQWxpdmVJbnRlcnZhbCAxMAogIFNlcnZlckFsaXZlQ291bnRNYXggMgogIFJlbW90ZUNvbW1hbmQgc25pLXByb3h5PXRydWUKICBSZW1vdGVGb3J3YXJkIGNpdGVzdC5ob2xlcHVuY2guaW46NDQzIHRyYWVmaWsudHJhZWZpay5zdmM6NDQzCg=="
 
 	require := s.Require()
@@ -111,7 +113,7 @@ func (s *ExtenderTestSuite) TestBase64Extender() {
 	extensions := []*ExtendedSegment{}
 	prefix, err := splitExtendedPath(path, &extensions)
 	require.NoError(err)
-	require.Len(prefix, 0, "There should be no prefix")
+	require.Empty(prefix, "There should be no prefix")
 	require.Len(extensions, 2, "There should be 2 extensions")
 	require.Equal("base64", extensions[0].Encoding, "The first extension should be base64")
 
@@ -161,7 +163,7 @@ func (s *ExtenderTestSuite) TestYamlExtender() {
 	extensions := []*ExtendedSegment{}
 	prefix, err := splitExtendedPath(path, &extensions)
 	require.NoError(err)
-	require.Len(prefix, 0, "There should be no prefix")
+	require.Empty(prefix, "There should be no prefix")
 	require.Len(extensions, 1, "There should be 2 extensions")
 	require.Equal("yaml", extensions[0].Encoding, "The first extension should be base64")
 
@@ -203,7 +205,7 @@ func (s *ExtenderTestSuite) TestYamlExtenderWithSequence() {
 	extensions := []*ExtendedSegment{}
 	prefix, err := splitExtendedPath(path, &extensions)
 	require.NoError(err)
-	require.Len(prefix, 0, "There should be no prefix")
+	require.Empty(prefix, "There should be no prefix")
 	require.Len(extensions, 1, "There should be 2 extensions")
 	require.Equal("yaml", extensions[0].Encoding, "The first extension should be base64")
 
@@ -303,7 +305,7 @@ func (s *ExtenderTestSuite) TestJsonExtender() {
 	extensions := []*ExtendedSegment{}
 	prefix, err := splitExtendedPath(path, &extensions)
 	require.NoError(err)
-	require.Len(prefix, 0, "There should be no prefix")
+	require.Empty(prefix, "There should be no prefix")
 	require.Len(extensions, 1, "There should be 2 extensions")
 	require.Equal("json", extensions[0].Encoding, "The first extension should be json")
 
@@ -354,7 +356,7 @@ func (s *ExtenderTestSuite) TestJsonArrayExtender() {
 	extensions := []*ExtendedSegment{}
 	prefix, err := splitExtendedPath(path, &extensions)
 	require.NoError(err)
-	require.Len(prefix, 0, "There should be no prefix")
+	require.Empty(prefix, "There should be no prefix")
 	require.Len(extensions, 1, "There should be 2 extensions")
 	require.Equal("json", extensions[0].Encoding, "The first extension should be json")
 
@@ -399,7 +401,7 @@ targetRevision = 'deploy/citest'
 	extensions := []*ExtendedSegment{}
 	prefix, err := splitExtendedPath(path, &extensions)
 	require.NoError(err)
-	require.Len(prefix, 0, "There should be no prefix")
+	require.Empty(prefix, "There should be no prefix")
 	require.Len(extensions, 1, "There should be 2 extensions")
 	require.Equal("toml", extensions[0].Encoding, "The first extension should be toml")
 
@@ -444,7 +446,7 @@ enabled = true
 	extensions := []*ExtendedSegment{}
 	prefix, err := splitExtendedPath(path, &extensions)
 	require.NoError(err)
-	require.Len(prefix, 0, "There should be no prefix")
+	require.Empty(prefix, "There should be no prefix")
 	require.Len(extensions, 1, "There should be 2 extensions")
 	require.Equal("ini", extensions[0].Encoding, "The first extension should be ini")
 
