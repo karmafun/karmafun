@@ -1,8 +1,10 @@
-# krmfnbuiltin
+# karmafun
+
+<!-- cSpell: words utable citest myhost uninode websecure instana krmfnsops lastmodified sishserver holepunch sshconfig -->
 
 [![stability-beta](https://img.shields.io/badge/stability-beta-33bbff.svg)](https://github.com/mkenney/software-guides/blob/master/STABILITY-BADGES.md#beta)
 
-krmfnbuiltin is a
+karmafun is a
 [kustomize plugin](https://kubectl.docs.kubernetes.io/guides/extending_kustomize/)
 providing a set of [KRM Functions] that you can use to perform in place
 transformation in your kustomize projects.
@@ -48,7 +50,7 @@ Unfortunately, the builtin transformers are not available to `kustomize fn run`,
 as it expects the function to be contained in an external `container` or
 `exec`utable .
 
-`krmfnbuiltin` provides both the image and executable allowing the use of any
+`karmafun` provides both the image and executable allowing the use of any
 kustomize builtin transformer or generator, along with some additional goodies.
 
 ## Usage Example
@@ -136,13 +138,13 @@ metadata:
   name: fn-change-repo-and-branch
   annotations:
     # This will remove the internal annotations the transformer adds.
-    config.kaweezle.com/cleanup: "true"
+    config.karmafun.dev/cleanup: "true"
     config.kubernetes.io/function: |
       exec:
-        path: krmfnbuiltin
+        path: karmafun
     # Can also be:
     #  container:
-    #    image: ghcr.io/kaweezle/krmfnbuiltin:v0.4.1
+    #    image: ghcr.io/karmafun/karmafun:v0.4.1
 patch: |-
   - op: replace
       path: /spec/source/repoURL
@@ -206,15 +208,15 @@ touched by the transformation. For instance:
 To avoid that, you can insert the following annotation:
 
 ```yaml
-config.kaweezle.com/cleanup: "true"
+config.karmafun.dev/cleanup: "true"
 ```
 
-It will inform krmfnbuiltin that you are not using the transformer in the
-context of a bulid and that the internal annotations need to be removed.
+It will inform karmafun that you are not using the transformer in the context of
+a build and that the internal annotations need to be removed.
 
 ## Use of generators
 
-`krmfnbuiltin` provides all the Kustomize
+`karmafun` provides all the Kustomize
 [builtin generators](https://kubectl.docs.kubernetes.io/references/kustomize/builtins/).
 
 Let's imagine that one or more of your applications use an Helm chart that in
@@ -265,10 +267,10 @@ metadata:
   name: configuration-map
   annotations:
     # This annotation will be transferred to the generated ConfigMap
-    config.kaweezle.com/local-config: "true"
+    config.karmafun.dev/local-config: "true"
     config.kubernetes.io/function: |
       exec:
-        path: krmfnbuiltin
+        path: karmafun
 # When using GitConfigMapGenerator, these are automatically injected
 literals:
   - repoURL=https://github.com/kaweezle/autocloud.git
@@ -286,10 +288,10 @@ metadata:
   namespace: argocd
   annotations:
     # Put this annotation in the last transformation to remove the generated resource
-    config.kaweezle.com/prune-local: "true"
+    config.karmafun.dev/prune-local: "true"
     config.kubernetes.io/function: |
       exec:
-        path: krmfnbuiltin
+        path: karmafun
 replacements:
   - source:
       kind: ConfigMap
@@ -328,7 +330,7 @@ Some remarks:
 - ✔️ The generators contains the annotation:
 
   ```yaml
-  config.kaweezle.com/local-config: "true"
+  config.karmafun.dev/local-config: "true"
   ```
 
   that is injected in the generated resource.
@@ -336,12 +338,12 @@ Some remarks:
 - ✔️ In the last transformation, we add the following annotation:
 
   ```yaml
-  config.kaweezle.com/prune-local: "true"
+  config.karmafun.dev/prune-local: "true"
   ```
 
   In order to avoid saving the generated resources. In the presence of this
-  annotation, `krmfnbuiltin` will remove all the resource having the
-  `config.kaweezle.com/local-config` annotation.
+  annotation, `karmafun` will remove all the resource having the
+  `config.karmafun.dev/local-config` annotation.
 
 ## Keeping or deleting generated resources
 
@@ -349,30 +351,30 @@ As said above, generated resources are saved by default. To prevent that,
 adding:
 
 ```yaml
-config.kaweezle.com/local-config: "true"
+config.karmafun.dev/local-config: "true"
 ```
 
 on the generators and:
 
 ```yaml
-config.kaweezle.com/prune-local: "true"
+config.karmafun.dev/prune-local: "true"
 ```
 
 On the last transformation will remove those resources. In the absence of these
 annotations, the generated resources will be saved in a file named
-`.krmfnbuiltin.yaml` located in the configuration directory. You may want to add
+`.karmafun.yaml` located in the configuration directory. You may want to add
 this file name to your `.gitignore` file in order to avoid committing it.
 
 In some cases however, we want to _inject_ new resources in the configuration.
-This can be done by just omitting the `config.kaweezle.com/local-config`
+This can be done by just omitting the `config.karmafun.dev/local-config`
 annotation.
 
 The name of the file containing the generated resources can be set with the
 following annotations:
 
-- `config.kaweezle.com/path` for the filename. If it contains directories, they
+- `config.karmafun.dev/path` for the filename. If it contains directories, they
   will be created.
-- `config.kaweezle.com/index` For the starting index of the resources in the
+- `config.karmafun.dev/index` For the starting index of the resources in the
   file.
 
 Example:
@@ -383,11 +385,11 @@ kind: ConfigMapGenerator
 metadata:
   name: configuration-map
   annotations:
-    # config.kaweezle.com/local-config: "true"
-    config.kaweezle.com/path: local-config.yaml
+    # config.karmafun.dev/local-config: "true"
+    config.karmafun.dev/path: local-config.yaml
     config.kubernetes.io/function: |
       exec:
-        path: krmfnbuiltin
+        path: karmafun
 ```
 
 With these annotations, the generated config map will be saved in the
@@ -396,7 +398,7 @@ With these annotations, the generated config map will be saved in the
 If the file name is empty, i.e. the annotation is:
 
 ```yaml
-config.kaweezle.com/path: ""
+config.karmafun.dev/path: ""
 ```
 
 The generated resources will be saved each in its own file with the pattern:
@@ -413,16 +415,15 @@ kube-flannel/daemonset_kube-flannel-ds.yaml
 
 ## Extensions
 
-This section describes the krmfnbuiltin additions to the Kustomize transformers
-and generators as well as the _enhancements_ that have been made to some of
-them.
+This section describes the karmafun additions to the Kustomize transformers and
+generators as well as the _enhancements_ that have been made to some of them.
 
 ### Remove Transformer
 
-In the case the transformation(s) involves other transformers than
-`krmfnbuiltin`, the `config.kaweezle.com/prune-local` may not be available to
-remove resources injected in the transformation pipeline. For this use case,
-`krmfnbuiltin` provides `RemoveTransformer`:
+In the case the transformation(s) involves other transformers than `karmafun`,
+the `config.karmafun.dev/prune-local` may not be available to remove resources
+injected in the transformation pipeline. For this use case, `karmafun` provides
+`RemoveTransformer`:
 
 ```yaml
 apiVersion: builtin
@@ -432,9 +433,9 @@ metadata:
   annotations:
     config.kubernetes.io/function: |
       exec:
-        path: ../../krmfnbuiltin
+        path: ../../karmafun
 targets:
-  - annotationSelector: config.kaweezle.com/local-config
+  - annotationSelector: config.karmafun.dev/local-config
 ```
 
 Each target specified in the `targets` field follows the
@@ -469,7 +470,7 @@ metadata:
   annotations:
     config.kubernetes.io/function: |
       exec:
-        path: krmfnbuiltin
+        path: karmafun
 remoteName: origin # default
 ```
 
@@ -482,13 +483,13 @@ metadata:
   name: configuration-map
   namespace: argocd
   annotations:
-    # add config.kaweezle.com/prune-local: "true" to last transformer to remove
+    # add config.karmafun.dev/prune-local: "true" to last transformer to remove
     config.kubernetes.io/local-config: "true"
     # Add .generated.yaml to .gitignore to avoid mistakes
     internal.config.kubernetes.io/path: .generated.yaml
     config.kubernetes.io/path: .generated.yaml
 data:
-  repoURL: git@github.com:kaweezle/krmfnbuiltin.git
+  repoURL: git@github.com:karmafun/karmafun.git
   targetRevision: feature/extended-replacement-transformer
 ```
 
@@ -504,24 +505,24 @@ prevents structural (_object_) replacement. For object replacements we can use
 advantage of using the same source for several targets and end up having
 duplicate YAML snippets.
 
-`krmfnbuiltin` allows injecting any KRM resource in the transformation by just
-adding the `config.kaweezle.com/inject-local: "true"` annotation to the function
+`karmafun` allows injecting any KRM resource in the transformation by just
+adding the `config.karmafun.dev/inject-local: "true"` annotation to the function
 configuration. For instance:
 
 ```yaml
-apiVersion: config.kaweezle.com/v1alpha1
+apiVersion: config.karmafun.dev/v1alpha1
 kind: LocalConfiguration
 metadata:
   name: traefik-customization
   annotations:
     # This will inject this resource. like a ConfigMapGenerator, but with hierarchical
     # properties
-    config.kaweezle.com/inject-local: "true"
+    config.karmafun.dev/inject-local: "true"
     # This annotation will allow pruning at the end
-    config.kaweezle.com/local-config: "true"
+    config.karmafun.dev/local-config: "true"
     config.kubernetes.io/function: |
       exec:
-        path: krmfnbuiltin
+        path: karmafun
 data:
   # kustomization
   traefik:
@@ -534,17 +535,17 @@ data:
     host_key: AAAAGnNrLXNzaC1lZDI1NTE5QG9wZW5zc2guY29tAAAAID+4/eqtPTLC18TE8ZP7NeF4ZP68/wnY2d7mhH/KVs79AAAABHNzaDo=
 ```
 
-When the function configuration contains the `config.kaweezle.com/inject-local`,
-annotation, `krmfnbuiltin` bypasses the generation/transformation process for
-this function and return the content of the function config _as if_ it had been
-generated. The `config.kaweezle.com/inject-local` annotation as well as the
+When the function configuration contains the `config.karmafun.dev/inject-local`,
+annotation, `karmafun` bypasses the generation/transformation process for this
+function and return the content of the function config _as if_ it had been
+generated. The `config.karmafun.dev/inject-local` annotation as well as the
 `config.kubernetes.io/function` annotation are removed from the injected
 resource.
 
 The resource contents can then be used in the following transformations, in
 particular in replacements, and deleted at the end (with
-`config.kaweezle.com/local-config` and `config.kaweezle.com/prune-local`) or
-even saved (with `config.kaweezle.com/path`). See
+`config.karmafun.dev/local-config` and `config.karmafun.dev/prune-local`) or
+even saved (with `config.karmafun.dev/path`). See
 [Keeping or deleting generated resources](#keeping-or-deleting-generated-resources))
 for more details.
 
@@ -562,10 +563,10 @@ kind: KustomizationGenerator
 metadata:
   name: kustomization-generator
   annotations:
-    config.kaweezle.com/path: "uninode.yaml" # file name to save resources
+    config.karmafun.dev/path: "uninode.yaml" # file name to save resources
     config.kubernetes.io/function: |
       exec:
-        path: krmfnbuiltin
+        path: karmafun
 kustomizeDirectory: https://github.com/antoinemartin/autocloud.git//packages/uninode?ref=deploy/citest
 ```
 
@@ -579,13 +580,13 @@ It will generate a file named `uninode.yaml` containing all the resources of the
 built kustomization in the `applications` directory. With:
 
 ```yaml
-config.kaweezle.com/path: ""
+config.karmafun.dev/path: ""
 ```
 
 One file will be created per resource (see
 [Keeping or deleting generated resources](#keeping-or-deleting-generated-resources)).
 
-**IMPORTANT** The current directory `krmfnbuiltin` runs from is the directory in
+**IMPORTANT** The current directory `karmafun` runs from is the directory in
 which the `kustomize run fn` command has been launched, and **not from the
 function configuration folder**. Any relative path should take this into
 consideration.
@@ -602,6 +603,8 @@ its README file for more information.
 In the simplest use case, Imagine you have an unencrypted secret that looks like
 this :
 
+<!-- cSpell: disable -->
+
 ```yaml
 # argocd-secret.yaml
 apiVersion: v1
@@ -615,6 +618,8 @@ stringData:
   webhook.github.secret: ZxqGggxGD070l3dx
   dex.github.clientSecret: 7lqt6nasit6kjtvptmy2dzy1dr796orn5xh05ru1
 ```
+
+<!-- cSpell: enable -->
 
 If you encrypt it with [sops], you get something like this:
 
@@ -649,14 +654,14 @@ create the following generator configuration:
 
 ```yaml
 # argocd-secret-generator.yaml
-apiVersion: krmfnbuiltin.kaweezle.com/v1alpha1
+apiVersion: karmafun.dev/v1alpha1
 kind: SopsGenerator
 metadata:
   name: argocd-secret-generator
   annotations:
     config.kubernetes.io/function: |
       exec:
-        path: krmfnbuiltin
+        path: karmafun
 files:
   - argocd-secret.yaml
 ```
@@ -673,17 +678,17 @@ directly transform the encrypted secret file into a KRM generator:
 
 ```yaml
 # argocd-secret.yaml
-apiVersion: krmfnbuiltin.kaweezle.com/v1alpha1
+apiVersion: karmafun.dev/v1alpha1
 kind: SopsGenerator
 type: Opaque
 metadata:
   name: argocd-secret
   annotations:
-    config.kaweezle.com/kind: "Secret"
-    config.kaweezle.com/apiVersion: "v1"
+    config.karmafun.dev/kind: "Secret"
+    config.karmafun.dev/apiVersion: "v1"
     config.kubernetes.io/function: |
       exec:
-        path: krmfnbuiltin
+        path: karmafun
 stringData:
   admin.password: ENC[AES256_GCM,data:...,type:str]
   admin.passwordMtime: ENC[AES256_GCM,data:...,type:str]
@@ -713,8 +718,8 @@ generators:
 Note the use of the following annotations:
 
 ```yaml
-config.kaweezle.com/kind: "Secret"
-config.kaweezle.com/apiVersion: "v1"
+config.karmafun.dev/kind: "Secret"
+config.karmafun.dev/apiVersion: "v1"
 ```
 
 In order to have the generated resource with the proper kind and api version.
@@ -725,8 +730,8 @@ file tampering. Use it at your own risk.
 
 ### Extended replacement in structured content
 
-The `ReplacementTransformer` provided in `krmfnbuiltin` is _extended_ compared
-to the standard one because it allows structured replacements in properties
+The `ReplacementTransformer` provided in `karmafun` is _extended_ compared to
+the standard one because it allows structured replacements in properties
 containing a string representation of some structured content. It currently
 supports the following structured formats:
 
@@ -784,7 +789,7 @@ spec:
             enabled: true
         tracing:
           instana: false
-        gobalArguments: {}
+        globalArguments: {}
         # BEWARE: use only for debugging
         additionalArguments:
          - --api.insecure=false
@@ -815,8 +820,8 @@ property by specifying:
 ```
 
 This is not possible with the standard `ReplacementTransformer`, but this is is
-possible with the one provided by `krmfnbuiltin`. Consider the following
-function configurations:
+possible with the one provided by `karmafun`. Consider the following function
+configurations:
 
 ```yaml
 # fn-traefik-customization.yaml
@@ -827,11 +832,11 @@ metadata:
   annotations:
     # This will inject this resource. like a ConfigMapGenerator, but with hierarchical
     # properties
-    config.kaweezle.com/inject-local: "true"
-    config.kaweezle.com/local-config: "true"
+    config.karmafun.dev/inject-local: "true"
+    config.karmafun.dev/local-config: "true"
     config.kubernetes.io/function: |
       exec:
-        path: krmfnbuiltin
+        path: karmafun
 data:
   # kustomization
   traefik:
@@ -844,10 +849,10 @@ metadata:
   name: replacement-transformer
   annotations:
     # remove LocalConfiguration after
-    config.kaweezle.com/prune-local: "true"
+    config.karmafun.dev/prune-local: "true"
     config.kubernetes.io/function: |
       exec:
-        path: krmfnbuiltin
+        path: karmafun
 replacements:
   - source:
       kind: LocalConfiguration
@@ -979,11 +984,11 @@ kind: LocalConfiguration
 metadata:
   name: configuration-map
   annotations:
-    config.kaweezle.com/inject-local: "true"
-    config.kaweezle.com/local-config: "true"
+    config.karmafun.dev/inject-local: "true"
+    config.karmafun.dev/local-config: "true"
     config.kubernetes.io/function: |
       exec:
-        path: krmfnbuiltin
+        path: karmafun
 data:
   sish:
     # New properties
@@ -996,10 +1001,10 @@ kind: ReplacementTransformer
 metadata:
   name: replacement-transformer
   annotations:
-    config.kaweezle.com/prune-local: "true"
+    config.karmafun.dev/prune-local: "true"
     config.kubernetes.io/function: |
       exec:
-        path: krmfnbuiltin
+        path: karmafun
 replacements:
   - source:
       kind: LocalConfiguration
@@ -1061,8 +1066,8 @@ will become
 #### Replacements source reuse
 
 In the above examples, the `ReplacementTransformer` gets the source data from a
-generator that is injected (`config.kaweezle.com/inject-local: "true"`) and then
-removed (`config.kaweezle.com/prune-local: "true"`). The extended version of
+generator that is injected (`config.karmafun.dev/inject-local: "true"`) and then
+removed (`config.karmafun.dev/prune-local: "true"`). The extended version of
 `ReplacementTransformer` allows specifying a `source:` that can either be a
 resource file or the path of a kustomization.
 
@@ -1070,7 +1075,7 @@ We can create a `properties.yaml` file:
 
 ```yaml
 # properties.yaml
-apiVersion: autocloud.config.kaweezle.com/v1alpha1
+apiVersion: autocloud.config.karmafun.dev/v1alpha1
 kind: PlatformValues
 metadata:
   name: autocloud-values
@@ -1096,7 +1101,7 @@ metadata:
   annotations:
     config.kubernetes.io/function: |
       exec:
-        path: krmfnbuiltin
+        path: karmafun
 # Source of replacements
 source: properties.yaml
 replacements:
@@ -1147,35 +1152,35 @@ encoding will generate a new value for each kustomization.
 
 ## Installation
 
-With each [Release](https://github.com/kaweezle/krmfnbuiltin/releases), we
-provide binaries for most platforms as well as Alpine based packages.
+With each [Release](https://github.com/karmafun/karmafun/releases), we provide
+binaries for most platforms as well as Alpine based packages.
 
 On POSIX systems (Linux and Mac), you can install the last version with:
 
 ```console
-curl -sLS https://raw.githubusercontent.com/kaweezle/krmfnbuiltin/main/get.sh | /bin/sh
+curl -sLS https://raw.githubusercontent.com/karmafun/karmafun/main/get.sh | /bin/sh
 ```
 
 If you don't want to pipe into shell, you can do:
 
 ```console
-> KRMFNBUILTIN_VERSION="v0.4.1"
-> curl -sLo /usr/local/bin/krmfnbuiltin https://github.com/kaweezle/krmfnbuiltin/releases/download/${KRMFNBUILTIN_VERSION}/krmfnbuiltin_${KRMFNBUILTIN_VERSION}_linux_amd64
+> KARMAFUN_VERSION="v0.4.1"
+> curl -sLo /usr/local/bin/karmafun https://github.com/karmafun/karmafun/releases/download/${KARMAFUN_VERSION}/karmafun_${KARMAFUN_VERSION}_linux_amd64
 ```
 
 ## Argo CD integration
 
-`krmfnbuiltin` is **NOT** primarily meant to be used inside Argo CD, but instead
-to perform _structural_ modifications to the configuration **BEFORE** it's
+`karmafun` is **NOT** primarily meant to be used inside Argo CD, but instead to
+perform _structural_ modifications to the configuration **BEFORE** it's
 committed and provided to GitOps.
 
-Anyway, to use `krmfnbuiltin` with Argo CD, you need to:
+Anyway, to use `karmafun` with Argo CD, you need to:
 
-- Make the `krmfnbuiltin` binary available to the `argo-repo-server` pod.
+- Make the `karmafun` binary available to the `argo-repo-server` pod.
 - Have Argo CD run kustomize with the `--enable-alpha-plugins --enable-exec`
   parameters.
 
-To add krmfnbuiltin on argo-repo-server, the
+To add karmafun on argo-repo-server, the
 [Argo CD documentation](https://argo-cd.readthedocs.io/en/stable/operator-manual/custom_tools/)
 provides different methods to make custom tools available.
 
@@ -1188,7 +1193,7 @@ summarize:
 ```Dockerfile
 FROM argoproj/argocd:latest
 
-ARG KRMFNBUILTIN_VERSION=v0.4.1
+ARG KARMAFUN_VERSION=v0.4.1
 
 # Switch to root for the ability to perform install
 USER root
@@ -1198,7 +1203,7 @@ RUN apt-get update && \
     apt-get install -y curl && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
-    curl -sLo /usr/local/bin/krmfnbuiltin https://github.com/kaweezle/krmfnbuiltin/releases/download/${KRMFNBUILTIN_VERSION}/krmfnbuiltin_${KRMFNBUILTIN_VERSION}_linux_amd64
+    curl -sLo /usr/local/bin/karmafun https://github.com/karmafun/karmafun/releases/download/${KARMAFUN_VERSION}/karmafun_${KARMAFUN_VERSION}_linux_amd64
 
 USER argocd
 ```
@@ -1226,8 +1231,8 @@ this model, a generator or a transformer along its parameters in much like a
 line in a dockerfile. It takes a current configuration as source and generates a
 new configuration after transformation.
 
-krmfnbuiltin works with [kpt]. The `tests/test_krmfnbuiltin_kpt.sh` script
-perform the basic tests with kpt.
+karmafun works with [kpt]. The `tests/test_karmafun_kpt.sh` script perform the
+basic tests with kpt.
 
 [knot8] lenses have provided the idea of extended paths.
 

@@ -3,10 +3,10 @@ kind: ReplacementTransformer
 metadata:
   name: replacement-transformer
   annotations:
-    ## config.kaweezle.com/prune-local: "true"
+    ## config.karmafun.dev/prune-local: "true"
     config.kubernetes.io/function: |
       exec:
-        path: ../../krmfnbuiltin
+        path: ../../karmafun
 replacements:
   - source:
       kind: LocalConfiguration

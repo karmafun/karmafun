@@ -1,5 +1,7 @@
 package extras
 
+// cSpell: words lithammer sishserver holepunch citest uninode
+
 import (
 	"bytes"
 	"testing"
@@ -54,7 +56,7 @@ func (s *ExtenderTestSuite) TestRegexExtender() {
 	expected := dedent.Dedent(`
     PubkeyAcceptedKeyTypes +ssh-rsa
     Host sishserver
-      HostName kaweezle.com
+      HostName karmafun.dev
       Port 2222
       BatchMode yes
       IdentityFile ~/.ssh_keys/id_rsa
@@ -75,7 +77,7 @@ func (s *ExtenderTestSuite) TestRegexExtender() {
 	require.NoError(err)
 	require.NotNil(extender)
 
-	require.NoError(extender.Set(path.Path, []byte("kaweezle.com")))
+	require.NoError(extender.Set(path.Path, []byte("karmafun.dev")))
 
 	out, err := extender.GetPayload()
 	require.NoError(err)
@@ -99,7 +101,7 @@ func (s *ExtenderTestSuite) TestBase64Extender() {
 	  RemoteForward citest.holepunch.in:443 traefik.traefik.svc:443
 	`)[1:]
 
-	modifiedEncoded := "UHVia2V5QWNjZXB0ZWRLZXlUeXBlcyArc3NoLXJzYQpIb3N0IHNpc2hzZXJ2ZXIKICBIb3N0TmFtZSBrYXdlZXpsZS5jb20KICBQb3J0IDIyMjIKICBCYXRjaE1vZGUgeWVzCiAgSWRlbnRpdHlGaWxlIH4vLnNzaF9rZXlzL2lkX3JzYQogIElkZW50aXRpZXNPbmx5IHllcwogIExvZ0xldmVsIEVSUk9SCiAgU2VydmVyQWxpdmVJbnRlcnZhbCAxMAogIFNlcnZlckFsaXZlQ291bnRNYXggMgogIFJlbW90ZUNvbW1hbmQgc25pLXByb3h5PXRydWUKICBSZW1vdGVGb3J3YXJkIGNpdGVzdC5ob2xlcHVuY2guaW46NDQzIHRyYWVmaWsudHJhZWZpay5zdmM6NDQzCg=="
+	modifiedEncoded := "UHVia2V5QWNjZXB0ZWRLZXlUeXBlcyArc3NoLXJzYQpIb3N0IHNpc2hzZXJ2ZXIKICBIb3N0TmFtZSBrYXJtYWZ1bi5kZXYKICBQb3J0IDIyMjIKICBCYXRjaE1vZGUgeWVzCiAgSWRlbnRpdHlGaWxlIH4vLnNzaF9rZXlzL2lkX3JzYQogIElkZW50aXRpZXNPbmx5IHllcwogIExvZ0xldmVsIEVSUk9SCiAgU2VydmVyQWxpdmVJbnRlcnZhbCAxMAogIFNlcnZlckFsaXZlQ291bnRNYXggMgogIFJlbW90ZUNvbW1hbmQgc25pLXByb3h5PXRydWUKICBSZW1vdGVGb3J3YXJkIGNpdGVzdC5ob2xlcHVuY2guaW46NDQzIHRyYWVmaWsudHJhZWZpay5zdmM6NDQzCg=="
 
 	require := s.Require()
 
@@ -127,7 +129,7 @@ func (s *ExtenderTestSuite) TestBase64Extender() {
 	require.NoError(err)
 	require.IsType(&regexExtender{}, reExtender, "Should be a regex extender")
 
-	require.NoError(reExtender.Set(regexExt.Path, []byte("kaweezle.com")))
+	require.NoError(reExtender.Set(regexExt.Path, []byte("karmafun.dev")))
 	modified, err := reExtender.GetPayload()
 	require.NoError(err)
 	require.NoError(b64Extender.Set(b64Ext.Path, modified))
@@ -331,7 +333,7 @@ func (s *ExtenderTestSuite) TestJsonArrayExtender() {
   },
   {
     "name": "repoURL",
-    "value": "https://github.com/kaweezle/example.git"
+    "value": "https://github.com/example/example.git"
   }
 ]`
 	expected := `[
@@ -341,7 +343,7 @@ func (s *ExtenderTestSuite) TestJsonArrayExtender() {
   },
   {
     "name": "repoURL",
-    "value": "https://github.com/kaweezle/example.git"
+    "value": "https://github.com/example/example.git"
   }
 ]
 `

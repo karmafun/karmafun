@@ -3,7 +3,7 @@ package plugins
 import (
 	"os"
 
-	"github.com/kaweezle/krmfnbuiltin/pkg/extras"
+	"github.com/karmafun/karmafun/pkg/extras"
 	"sigs.k8s.io/kustomize/api/builtins"
 	"sigs.k8s.io/kustomize/api/filesys"
 	fLdr "sigs.k8s.io/kustomize/api/loader"

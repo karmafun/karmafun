@@ -6,35 +6,36 @@
 # Repo specific content #
 #########################
 
+# cSpell: words armv armhf
+
 export VERIFY_CHECKSUM=1
 export ALIAS_NAME=""
-export OWNER=kaweezle
-export REPO=krmfnbuiltin
-export BINLOCATION="/usr/local/bin"
-export SUCCESS_CMD="$BINLOCATION/$REPO --version"
+export OWNER=karmafun
+export REPO=karmafun
+export BIN_LOCATION="/usr/local/bin"
+export SUCCESS_CMD="$BIN_LOCATION/$REPO --version"
 
 ###############################
 # Content common across repos #
 ###############################
 
 version=$(curl -sI https://github.com/$OWNER/$REPO/releases/latest | grep -i "location:" | awk -F"/" '{ printf "%s", $NF }' | tr -d '\r')
-if [ ! $version ]; then
+if [ ! "$version" ]; then
     echo "Failed while attempting to install $REPO. Please manually install:"
     echo ""
     echo "1. Open your web browser and go to https://github.com/$OWNER/$REPO/releases"
     echo "2. Download the latest release for your platform. Call it '$REPO'."
     echo "3. chmod +x ./$REPO"
-    echo "4. mv ./$REPO $BINLOCATION"
+    echo "4. mv ./$REPO $BIN_LOCATION"
     if [ -n "$ALIAS_NAME" ]; then
-        echo "5. ln -sf $BINLOCATION/$REPO /usr/local/bin/$ALIAS_NAME"
+        echo "5. ln -sf $BIN_LOCATION/$REPO /usr/local/bin/$ALIAS_NAME"
     fi
     exit 1
 fi
 
 hasCli() {
 
-    hasCurl=$(which curl)
-    if [ "$?" = "1" ]; then
+    if ! command -v curl >/dev/null 2>&1; then
         echo "You need curl to use this script."
         exit 1
     fi
@@ -44,21 +45,21 @@ checkHash() {
 
     sha_cmd="sha256sum"
 
-    if [ ! -x "$(command -v $sha_cmd)" ]; then
-        sha_cmd="shasum -a 256"
+    if ! command -v sha256sum >/dev/null 2>&1; then
+        if command -v shasum >/dev/null 2>&1; then
+            sha_cmd="shasum -a 256"
+        else
+            echo "Neither sha256sum nor shasum is available. Cannot verify binary checksum."
+            return
+        fi
     fi
 
-    if [ -x "$(command -v $sha_cmd)" ]; then
+    targetFileDir=${targetFile%/*}
+    sha_url="https://github.com/$OWNER/$REPO/releases/download/$version/SHA256SUMS"
 
-        targetFileDir=${targetFile%/*}
-        sha_url="https://github.com/$OWNER/$REPO/releases/download/$version/SHA256SUMS"
-
-        (cd "$targetFileDir" && curl -sSL $sha_url | grep $fileName | $sha_cmd -c >/dev/null)
-
-        if [ "$?" != "0" ]; then
-            rm "$targetFile"
-            echo "Binary checksum didn't match. Exiting"
-        fi
+    if ! (cd "$targetFileDir" && curl -sSL "$sha_url" | grep "$fileName" | $sha_cmd -c >/dev/null); then
+        rm "$targetFile"
+        echo "Binary checksum didn't match. Exiting"
     fi
 }
 
@@ -94,8 +95,8 @@ getPackage() {
             ;;
         esac
 
-        BINLOCATION="$HOME/bin"
-        mkdir -p $BINLOCATION
+        BIN_LOCATION="$HOME/bin"
+        mkdir -p "$BIN_LOCATION"
 
         ;;
     "Linux")
@@ -128,12 +129,10 @@ getPackage() {
         rm "$targetFile"
     fi
 
-    url=https://github.com/$OWNER/$REPO/releases/download/$version/$fileName
+    url="https://github.com/$OWNER/$REPO/releases/download/$version/$fileName"
     echo "Downloading package $url as $targetFile"
 
-    curl -sSL $url --output "$targetFile"
-
-    if [ "$?" = "0" ]; then
+    if curl -sSL "$url" --output "$targetFile"; then
 
         if [ "$VERIFY_CHECKSUM" = "1" ]; then
             checkHash
@@ -143,19 +142,19 @@ getPackage() {
 
         echo "Download complete."
 
-        if [ ! -w "$BINLOCATION" ]; then
+        if [ ! -w "$BIN_LOCATION" ]; then
 
             echo
             echo "============================================================"
             echo "  The script was run as a user who is unable to write"
-            echo "  to $BINLOCATION. To complete the installation the"
+            echo "  to $BIN_LOCATION. To complete the installation the"
             echo "  following commands may need to be run manually."
             echo "============================================================"
             echo
-            echo "  sudo cp $REPO$suffix $BINLOCATION/$REPO"
+            echo "  sudo cp $REPO$suffix $BIN_LOCATION/$REPO"
 
             if [ -n "$ALIAS_NAME" ]; then
-                echo "  sudo ln -sf $BINLOCATION/$REPO $BINLOCATION/$ALIAS_NAME"
+                echo "  sudo ln -sf $BIN_LOCATION/$REPO $BIN_LOCATION/$ALIAS_NAME"
             fi
 
             echo
@@ -163,13 +162,13 @@ getPackage() {
         else
 
             echo
-            echo "Running with sufficient permissions to attempt to move $REPO to $BINLOCATION"
+            echo "Running with sufficient permissions to attempt to move $REPO to $BIN_LOCATION"
 
-            if [ ! -w "$BINLOCATION/$REPO" ] && [ -f "$BINLOCATION/$REPO" ]; then
+            if [ ! -w "$BIN_LOCATION/$REPO" ] && [ -f "$BIN_LOCATION/$REPO" ]; then
 
                 echo
                 echo "================================================================"
-                echo "  $BINLOCATION/$REPO already exists and is not writeable"
+                echo "  $BIN_LOCATION/$REPO already exists and is not writeable"
                 echo "  by the current user.  Please adjust the binary ownership"
                 echo "  or run sh/bash with sudo."
                 echo "================================================================"
@@ -178,10 +177,8 @@ getPackage() {
 
             fi
 
-            mv "$targetFile" $BINLOCATION/$REPO
-
-            if [ "$?" = "0" ]; then
-                echo "New version of $REPO installed to $BINLOCATION"
+            if mv "$targetFile" "$BIN_LOCATION/$REPO"; then
+                echo "New version of $REPO installed to $BIN_LOCATION"
             fi
 
             if [ -e "$targetFile" ]; then
@@ -189,11 +186,11 @@ getPackage() {
             fi
 
             if [ -n "$ALIAS_NAME" ]; then
-                if [ $(which $ALIAS_NAME) ]; then
+                if [ "$(which "$ALIAS_NAME")" ]; then
                     echo "There is already a command '$ALIAS_NAME' in the path, NOT creating alias"
                 else
-                    if [ ! -L $BINLOCATION/$ALIAS_NAME ]; then
-                        ln -s $BINLOCATION/$REPO $BINLOCATION/$ALIAS_NAME
+                    if [ ! -L "$BIN_LOCATION/$ALIAS_NAME" ]; then
+                        ln -s "$BIN_LOCATION/$REPO" "$BIN_LOCATION/$ALIAS_NAME"
                         echo "Creating alias '$ALIAS_NAME' for '$REPO'."
                     fi
                 fi

@@ -3,11 +3,11 @@ kind: LocalConfiguration
 metadata:
   name: configuration-map
   annotations:
-    config.kaweezle.com/inject-local: "true"
-    config.kaweezle.com/local-config: "true"
+    config.karmafun.dev/inject-local: "true"
+    config.karmafun.dev/local-config: "true"
     config.kubernetes.io/function: |
       exec:
-        path: ../../krmfnbuiltin
+        path: ../../karmafun
 data:
   sish:
     server: target.link

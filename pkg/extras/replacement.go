@@ -8,7 +8,7 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/kaweezle/krmfnbuiltin/pkg/utils"
+	"github.com/karmafun/karmafun/pkg/utils"
 	"github.com/pkg/errors"
 	"sigs.k8s.io/kustomize/api/loader"
 	"sigs.k8s.io/kustomize/api/resmap"

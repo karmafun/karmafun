@@ -1,3 +1,4 @@
 FROM alpine:latest
-COPY krmfnbuiltin /usr/local/bin/config-function
+ARG TARGETPLATFORM
+COPY $TARGETPLATFORM/karmafun /usr/local/bin/config-function
 CMD ["config-function"]

@@ -3,7 +3,7 @@ package extras
 import (
 	"fmt"
 
-	"github.com/kaweezle/krmfnbuiltin/pkg/utils"
+	"github.com/karmafun/karmafun/pkg/utils"
 	"github.com/pkg/errors"
 	"go.mozilla.org/sops/v3/aes"
 	"go.mozilla.org/sops/v3/cmd/sops/common"
@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	defaultApiVersion = "config.kaweezle.com/v1alpha1"
+	defaultApiVersion = "config.karmafun.dev/v1alpha1"
 	defaultKind       = "PlatformSecrets"
 	c
 )
@@ -34,7 +34,6 @@ type SopsGeneratorPlugin struct {
 }
 
 func Decrypt(b []byte, format formats.Format, file string, ignoreMac bool) (nodes []*yaml.RNode, err error) {
-
 	store := common.StoreForFormat(format)
 
 	// Load SOPS file and access the data key
@@ -51,7 +50,6 @@ func Decrypt(b []byte, format formats.Format, file string, ignoreMac bool) (node
 		IgnoreMac: ignoreMac,
 		Cipher:    aes.NewCipher(),
 	})
-
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +107,6 @@ func (p *SopsGeneratorPlugin) Generate() (resmap.ResMap, error) {
 			}
 		}
 	} else {
-
 		for _, file := range p.Files {
 
 			b, err := p.h.Loader().Load(file)
@@ -125,7 +122,6 @@ func (p *SopsGeneratorPlugin) Generate() (resmap.ResMap, error) {
 			nodes = append(nodes, fileNodes...)
 
 		}
-
 	}
 	return utils.ResourceMapFromNodes(nodes), nil
 }

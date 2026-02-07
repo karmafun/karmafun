@@ -4,10 +4,10 @@ metadata:
   name: replacement-transformer
   namespace: argocd
   annotations:
-    config.kaweezle.com/prune-local: "true"
+    config.karmafun.dev/prune-local: "true"
     config.kubernetes.io/function: |
       exec:
-        path: ../../krmfnbuiltin
+        path: ../../karmafun
 replacements:
   - source:
       kind: ConfigMap

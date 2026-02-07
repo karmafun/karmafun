@@ -41,7 +41,7 @@ func RemoveBuildAnnotations(r *resource.Resource) {
 }
 
 func TransferAnnotations(list []*yaml.RNode, config *yaml.RNode) (err error) {
-	path := ".krmfnbuiltin.yaml"
+	path := ".karmafun.yaml"
 	startIndex := 0
 
 	configAnnotations := config.GetAnnotations()
@@ -100,7 +100,7 @@ func unLocal(list []*yaml.RNode) ([]*yaml.RNode, error) {
 	output := []*yaml.RNode{}
 	for _, r := range list {
 		annotations := r.GetAnnotations()
-		// We don't append resources with config.kaweezle.com/local-config resources
+		// We don't append resources with config.karmafun.dev/local-config resources
 		if _, ok := annotations[FunctionAnnotationLocalConfig]; !ok {
 			// For the remaining resources, if a path and/or index was specified
 			// we copy it.

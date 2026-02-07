@@ -3,8 +3,8 @@ kind: KustomizationGenerator
 metadata:
   name: kustomization-generator
   annotations:
-    config.kaweezle.com/path: ""
+    config.karmafun.dev/path: ""
     config.kubernetes.io/function: |
       exec:
-        path: ../../krmfnbuiltin
+        path: ../../karmafun
 kustomizeDirectory: https://github.com/antoinemartin/autocloud.git//packages/uninode?ref=deploy/citest

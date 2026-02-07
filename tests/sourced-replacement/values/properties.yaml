@@ -1,4 +1,4 @@
-apiVersion: autocloud.config.kaweezle.com/v1alpha1
+apiVersion: autocloud.config.karmafun.dev/v1alpha1
 kind: PlatformValues
 metadata:
   name: autocloud-values

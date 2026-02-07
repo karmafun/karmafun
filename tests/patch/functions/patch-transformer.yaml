@@ -3,10 +3,10 @@ kind: PatchTransformer
 metadata:
   name: not-important-to-example
   annotations:
-    config.kaweezle.com/cleanup: "true"
+    config.karmafun.dev/cleanup: "true"
     config.kubernetes.io/function: |
       exec:
-        path: ../../krmfnbuiltin
+        path: ../../karmafun
 patch: |-
   - op: replace
     path: /spec/source/repoURL

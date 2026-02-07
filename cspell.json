@@ -1,0 +1,38 @@
+{
+  "version": "0.2",
+  "language": "en",
+  "ignorePaths": [],
+  "dictionaryDefinitions": [],
+  "dictionaries": [
+    "bash",
+    "docker",
+    "golang",
+    "terraform",
+    "softwareTerms"
+  ],
+  "words": [
+    "configmap",
+    "covermode",
+    "coverprofile",
+    "daemonset",
+    "finalizer",
+    "finalizers",
+    "golangci",
+    "goreleaser",
+    "incpatch",
+    "karmafun",
+    "kaweezle",
+    "Kustomization",
+    "kustomizations",
+    "kyaml",
+    "pipx",
+    "Prefixf",
+    "resmap",
+    "sish",
+    "stretchr",
+    "traefik",
+    "uexo"
+  ],
+  "ignoreWords": [],
+  "import": []
+}

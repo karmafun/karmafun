@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/kaweezle/krmfnbuiltin/pkg/plugins"
-	"github.com/kaweezle/krmfnbuiltin/pkg/utils"
+	"github.com/karmafun/karmafun/pkg/plugins"
+	"github.com/karmafun/karmafun/pkg/utils"
 
 	"sigs.k8s.io/kustomize/api/resmap"
 	"sigs.k8s.io/kustomize/api/resource"
@@ -16,10 +16,15 @@ import (
 	"sigs.k8s.io/kustomize/kyaml/yaml"
 )
 
+var (
+	KarmafunVersion = "v0.4.3" // <---VERSION--->
+	Commit          = "unknown"
+	BuildDate       = "unknown"
+	BuiltBy         = "unknown"
+)
+
 func main() {
-
 	var processor framework.ResourceListProcessorFunc = func(rl *framework.ResourceList) error {
-
 		config := rl.FunctionConfig
 
 		res := resource.Resource{RNode: *config}
@@ -38,7 +43,6 @@ func main() {
 		if plugin != nil {
 			yamlNode := config.YNode()
 			yamlBytes, err := yaml.Marshal(yamlNode)
-
 			if err != nil {
 				return errors.WrapPrefixf(err, "marshalling yaml from res %s", res.OrgId())
 			}
@@ -72,12 +76,12 @@ func main() {
 
 			rl.Items = rm.ToRNodeSlice()
 
-			// If the annotation `config.kaweezle.com/prune-local` is present in a
+			// If the annotation `config.karmafun.dev/prune-local` is present in a
 			// transformer makes all the local resources disappear.
 			if _, ok := configAnnotations[utils.FunctionAnnotationPruneLocal]; ok {
 				err = rl.Filter(utils.UnLocal)
 				if err != nil {
-					return errors.WrapPrefixf(err, "while pruning `config.kaweezle.com/local-config` resources")
+					return errors.WrapPrefixf(err, "while pruning `config.karmafun.dev/local-config` resources")
 				}
 			}
 
@@ -109,12 +113,11 @@ func main() {
 		}
 
 		return nil
-
 	}
 
 	cmd := command.Build(processor, command.StandaloneDisabled, false)
 	command.AddGenerateDockerfile(cmd)
-	cmd.Version = "v0.4.3" // <---VERSION--->
+	cmd.Version = KarmafunVersion
 
 	if err := cmd.Execute(); err != nil {
 		os.Exit(1)
