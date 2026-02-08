@@ -1,11 +1,11 @@
-apiVersion: krmfnbuiltin.kaweezle.com/v1alpha1
+apiVersion: karmafun.dev/v1alpha1
 kind: ReplacementTransformer
 metadata:
   name: argocd-values-replacements
   annotations:
     config.kubernetes.io/function: |
       exec:
-        path: ../../krmfnbuiltin
+        path: ../../karmafun
 source: values/properties.yaml
 replacements:
   - source:

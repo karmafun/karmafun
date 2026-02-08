@@ -5,6 +5,6 @@ metadata:
   annotations:
     config.kubernetes.io/function: |
       exec:
-        path: ../../krmfnbuiltin
+        path: ../../karmafun
 targets:
-  - annotationSelector: config.kaweezle.com/local-config
+  - annotationSelector: config.karmafun.dev/local-config

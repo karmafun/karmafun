@@ -1,6 +1,7 @@
 // Copyright 2021 The Kubernetes Authors.
 // SPDX-License-Identifier: Apache-2.0
 
+// cSpell: words filesys
 package extras
 
 import (
@@ -8,7 +9,6 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/kaweezle/krmfnbuiltin/pkg/utils"
 	"github.com/pkg/errors"
 	"sigs.k8s.io/kustomize/api/loader"
 	"sigs.k8s.io/kustomize/api/resmap"
@@ -18,6 +18,8 @@ import (
 	"sigs.k8s.io/kustomize/kyaml/resid"
 	kyaml_utils "sigs.k8s.io/kustomize/kyaml/utils"
 	"sigs.k8s.io/kustomize/kyaml/yaml"
+
+	"github.com/karmafun/karmafun/pkg/utils"
 )
 
 type extendedFilter struct {
@@ -25,7 +27,7 @@ type extendedFilter struct {
 	sourceNodes  []*yaml.RNode
 }
 
-// Filter replaces values of targets with values from sources
+// Filter replaces values of targets with values from sources.
 func (f extendedFilter) Filter(nodes []*yaml.RNode) ([]*yaml.RNode, error) {
 	sourceNodes := f.sourceNodes
 	if sourceNodes == nil {
@@ -63,14 +65,18 @@ func getReplacement(nodes []*yaml.RNode, r *types.Replacement) (*yaml.RNode, err
 		return nil, fmt.Errorf("error looking up replacement source: %w", err)
 	}
 	if rn.IsNilOrEmpty() {
-		return nil, fmt.Errorf("fieldPath `%s` is missing for replacement source %s", r.Source.FieldPath, r.Source.ResId)
+		return nil, fmt.Errorf(
+			"fieldPath `%s` is missing for replacement source %s",
+			r.Source.FieldPath,
+			r.Source.ResId,
+		)
 	}
 
 	return getRefinedValue(r.Source.Options, rn)
 }
 
 // selectSourceNode finds the node that matches the selector, returning
-// an error if multiple or none are found
+// an error if multiple or none are found.
 func selectSourceNode(nodes []*yaml.RNode, selector *types.SourceSelector) (*yaml.RNode, error) {
 	var matches []*yaml.RNode
 	for _, n := range nodes {
@@ -113,17 +119,21 @@ func getRefinedValue(options *types.FieldOptions, rn *yaml.RNode) (*yaml.RNode, 
 	} else {
 		value, err := GetEncodedValue(yaml.GetValue(rn), options.Encoding)
 		if err != nil {
-			return nil, errors.Wrapf(err, "while encoding value")
+			return nil, fmt.Errorf("while encoding value: %w", err)
 		}
 		n.YNode().Value = value
 	}
 	return n, nil
 }
 
-func applyReplacement(nodes []*yaml.RNode, value *yaml.RNode, targetSelectors []*types.TargetSelector) ([]*yaml.RNode, error) {
+func applyReplacement(
+	nodes []*yaml.RNode,
+	value *yaml.RNode,
+	targetSelectors []*types.TargetSelector,
+) ([]*yaml.RNode, error) {
 	for _, selector := range targetSelectors {
 		if selector.Select == nil {
-			return nil, errors.New("target must specify resources to select")
+			return nil, fmt.Errorf("target must specify resources to select")
 		}
 		if len(selector.FieldPaths) == 0 {
 			selector.FieldPaths = []string{types.DefaultReplacementFieldPath}
@@ -167,7 +177,7 @@ func selectByAnnoAndLabel(n *yaml.RNode, t *types.TargetSelector) (bool, error) 
 			continue
 		}
 		if m, err := matchesAnnoAndLabelSelector(n, reject); m || err != nil {
-			return false, err
+			return false, fmt.Errorf("while matching reject selector: %w", err)
 		}
 	}
 	return true, nil
@@ -177,25 +187,25 @@ func matchesAnnoAndLabelSelector(n *yaml.RNode, selector *types.Selector) (bool,
 	r := resource.Resource{RNode: *n}
 	annoMatch, err := r.MatchesAnnotationSelector(selector.AnnotationSelector)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("while matching annotation selector: %w", err)
 	}
 	labelMatch, err := r.MatchesLabelSelector(selector.LabelSelector)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("while matching label selector: %w", err)
 	}
 	return annoMatch && labelMatch, nil
 }
 
 func rejectId(rejects []*types.Selector, id *resid.ResId) bool {
 	for _, r := range rejects {
-		if !r.ResId.IsEmpty() && id.IsSelectedBy(r.ResId) {
+		if !r.IsEmpty() && id.IsSelectedBy(r.ResId) {
 			return true
 		}
 	}
 	return false
 }
 
-func copyValueToTarget(target *yaml.RNode, value *yaml.RNode, selector *types.TargetSelector) error {
+func copyValueToTarget(target, value *yaml.RNode, selector *types.TargetSelector) error {
 	for _, fp := range selector.FieldPaths {
 		fieldPath := kyaml_utils.SmarterPathSplitter(fp, ".")
 		extendedPath, err := NewExtendedPath(fieldPath)
@@ -231,12 +241,16 @@ func copyValueToTarget(target *yaml.RNode, value *yaml.RNode, selector *types.Ta
 				return err
 			}
 		}
-
 	}
 	return nil
 }
 
-func setFieldValue(options *types.FieldOptions, targetField *yaml.RNode, value *yaml.RNode, extendedPath *ExtendedPath) error {
+func setFieldValue(
+	options *types.FieldOptions,
+	targetField *yaml.RNode,
+	value *yaml.RNode,
+	extendedPath *ExtendedPath,
+) error {
 	value = value.Copy()
 	if options != nil && options.Delimiter != "" {
 		if extendedPath.HasExtensions() {
@@ -287,7 +301,7 @@ func shouldCreateField(options *types.FieldOptions, fieldPath []string) (bool, e
 
 // Copied
 
-// makeResIds returns all of an RNode's current and previous Ids
+// makeResIds returns all of an RNode's current and previous Ids.
 func makeResIds(n *yaml.RNode) ([]resid.ResId, error) {
 	var result []resid.ResId
 	apiVersion := n.Field(yaml.APIVersionField)
@@ -306,9 +320,8 @@ func makeResIds(n *yaml.RNode) ([]resid.ResId, error) {
 	return result, nil
 }
 
-// prevIds returns all of an RNode's previous Ids
+// prevIds returns all of an RNode's previous Ids.
 func prevIds(n *yaml.RNode) ([]resid.ResId, error) {
-	var ids []resid.ResId
 	// TODO: merge previous names and namespaces into one list of
 	//     pairs on one annotation so there is no chance of error
 	annotations := n.GetAnnotations()
@@ -325,10 +338,11 @@ func prevIds(n *yaml.RNode) ([]resid.ResId, error) {
 				"number of previous namespaces, " +
 				"number of previous kinds not equal")
 	}
+	ids := make([]resid.ResId, len(names))
 	for i := range names {
 		meta, err := n.GetMeta()
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("while getting metadata: %w", err)
 		}
 		group, version := resid.ParseGroupVersion(meta.APIVersion)
 		gvk := resid.Gvk{
@@ -336,8 +350,8 @@ func prevIds(n *yaml.RNode) ([]resid.ResId, error) {
 			Version: version,
 			Kind:    kinds[i],
 		}
-		ids = append(ids, resid.NewResIdWithNamespace(
-			gvk, names[i], ns[i]))
+		ids[i] = resid.NewResIdWithNamespace(
+			gvk, names[i], ns[i])
 	}
 	return ids, nil
 }
@@ -361,18 +375,19 @@ func prevIds(n *yaml.RNode) ([]resid.ResId, error) {
 //
 // [kustomize doc]: https://kubectl.docs.kubernetes.io/references/kustomize/kustomization/replacements/
 type ExtendedReplacementTransformerPlugin struct {
-	ReplacementList []types.ReplacementField `json:"replacements,omitempty" yaml:"replacements,omitempty"`
-	Replacements    []types.Replacement      `json:"omitempty" yaml:"omitempty"`
-	Source          string                   `json:"source,omitempty" yaml:"source,omitempty"`
 	h               *resmap.PluginHelpers
+	Source          string                   `json:"source,omitempty"       yaml:"source,omitempty"`
+	ReplacementList []types.ReplacementField `json:"replacements,omitempty" yaml:"replacements,omitempty"`
+	Replacements    []types.Replacement      `json:"omitempty"              yaml:"omitempty"`
 }
 
-// Config configures the plugin
+// Config configures the plugin.
 func (p *ExtendedReplacementTransformerPlugin) Config(
-	h *resmap.PluginHelpers, c []byte) (err error) {
+	h *resmap.PluginHelpers, c []byte,
+) error {
 	p.ReplacementList = []types.ReplacementField{}
 	if err := yaml.Unmarshal(c, p); err != nil {
-		return err
+		return fmt.Errorf("while configuring ExtendedReplacementTransformerPlugin: %w", err)
 	}
 	p.h = h
 
@@ -380,71 +395,84 @@ func (p *ExtendedReplacementTransformerPlugin) Config(
 		if r.Path != "" && (r.Source != nil || len(r.Targets) != 0) {
 			return fmt.Errorf("cannot specify both path and inline replacement")
 		}
+		repl := []types.Replacement{r.Replacement}
 		if r.Path != "" {
 			// load the replacement from the path
 			content, err := h.Loader().Load(r.Path)
 			if err != nil {
-				return err
+				return fmt.Errorf("while loading replacement path %s: %w", r.Path, err)
 			}
-			// find if the path contains a a list of replacements or a single replacement
-			var replacement interface{}
+			// find if the path contains a list of replacements or a single replacement
+			var replacement any
 			err = yaml.Unmarshal(content, &replacement)
 			if err != nil {
-				return err
+				return fmt.Errorf("while unmarshaling replacement path %s: %w", r.Path, err)
 			}
 			items := reflect.ValueOf(replacement)
+			//nolint:exhaustive // we only support unmarshaling to map or slice, so we don't need to check all kinds
 			switch items.Kind() {
 			case reflect.Slice:
-				repl := []types.Replacement{}
-				if err := yaml.Unmarshal(content, &repl); err != nil {
-					return err
+				value := []types.Replacement{}
+				if err := yaml.Unmarshal(content, &value); err != nil {
+					return fmt.Errorf("while unmarshaling replacement path %s: %w", r.Path, err)
 				}
-				p.Replacements = append(p.Replacements, repl...)
+				repl = value
 			case reflect.Map:
-				repl := types.Replacement{}
-				if err := yaml.Unmarshal(content, &repl); err != nil {
-					return err
+				value := types.Replacement{}
+				if err := yaml.Unmarshal(content, &value); err != nil {
+					return fmt.Errorf("while unmarshaling replacement path %s: %w", r.Path, err)
 				}
-				p.Replacements = append(p.Replacements, repl)
+				repl = []types.Replacement{value}
 			default:
 				return fmt.Errorf("unsupported replacement type encountered within replacement path: %v", items.Kind())
 			}
-		} else {
-			// replacement information is already loaded
-			p.Replacements = append(p.Replacements, r.Replacement)
 		}
+
+		p.Replacements = append(p.Replacements, repl...)
 	}
 
 	return nil
 }
 
-// Transform performs the configured replacements in the specified resource map
-func (p *ExtendedReplacementTransformerPlugin) Transform(m resmap.ResMap) (err error) {
-
+func loadSource(h *resmap.PluginHelpers, path string) ([]*yaml.RNode, error) {
 	var sourceNodes []*yaml.RNode
-	if p.Source != "" {
-		source, err := p.h.ResmapFactory().FromFile(p.h.Loader(), p.Source)
-		if err != nil {
-			if errors.Is(err, loader.ErrHTTP) {
-				return errors.Wrapf(err, "while reading source %s", p.Source)
-			}
-
-			source, err = runKustomizations(filesys.MakeFsOnDisk(), p.Source)
-			if err != nil {
-				return errors.Wrapf(err, "while getting source for replacements %s", p.Source)
-			}
+	if path == "" {
+		return sourceNodes, nil
+	}
+	source, err := h.ResmapFactory().FromFile(h.Loader(), path)
+	if err != nil {
+		if errors.Is(err, loader.ErrHTTP) {
+			return sourceNodes, fmt.Errorf("while reading source %s: %w", path, err)
 		}
 
-		sourceNodes = source.ToRNodeSlice()
+		source, err = runKustomizations(filesys.MakeFsOnDisk(), path)
+		if err != nil {
+			return sourceNodes, fmt.Errorf("while getting source for replacements %s: %w", path, err)
+		}
 	}
 
-	return m.ApplyFilter(extendedFilter{
+	sourceNodes = source.ToRNodeSlice()
+	return sourceNodes, nil
+}
+
+// Transform performs the configured replacements in the specified resource map.
+func (p *ExtendedReplacementTransformerPlugin) Transform(m resmap.ResMap) error {
+	sourceNodes, err := loadSource(p.h, p.Source)
+	if err != nil {
+		return fmt.Errorf("while loading source from path %s: %w", p.Source, err)
+	}
+
+	err = m.ApplyFilter(extendedFilter{
 		Replacements: p.Replacements,
 		sourceNodes:  sourceNodes,
 	})
+	if err != nil {
+		return fmt.Errorf("while applying replacements: %w", err)
+	}
+	return nil
 }
 
-// NewExtendedReplacementTransformerPlugin returns a newly created [ExtendedReplacementTransformerPlugin]
+// NewExtendedReplacementTransformerPlugin returns a newly created [ExtendedReplacementTransformerPlugin].
 func NewExtendedReplacementTransformerPlugin() resmap.TransformerPlugin {
 	return &ExtendedReplacementTransformerPlugin{}
 }

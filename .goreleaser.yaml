@@ -1,5 +1,7 @@
 # This is an example .goreleaser.yml file with some sensible defaults.
 # Make sure to check the documentation at https://goreleaser.com
+# cSpell: words bindir nfpms trimpath
+version: 2
 before:
   hooks:
     - go mod tidy
@@ -14,20 +16,20 @@ builds:
     flags:
       - -trimpath
     ldflags:
-      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X
-        main.date={{ .CommitDate }} -X main.builtBy=goreleaser
-    binary: krmfnbuiltin
-    id: krmfnbuiltin
+      - -s -w -X main.KarmafunVersion={{.Version}} -X main.Commit={{.Commit}} -X
+        main.BuildDate={{ .CommitDate }} -X main.BuiltBy=goreleaser
+    binary: karmafun
+    id: karmafun
 archives:
-  - format: binary
+  - formats: [binary]
     name_template: '{{ .Binary }}_v{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ with .Arm }}v{{ . }}{{ end }}{{ with .Mips }}_{{ . }}{{ end }}{{ if not (eq .Amd64 "v1") }}{{ .Amd64 }}{{ end }}'
     format_overrides:
       - goos: windows
-        format: zip
+        formats: [zip]
 checksum:
   name_template: "SHA256SUMS"
 snapshot:
-  name_template: "{{ incpatch .Version }}-devel"
+  version_template: "{{ incpatch .Version }}-devel"
 changelog:
   sort: asc
   filters:
@@ -42,7 +44,7 @@ changelog:
 nfpms:
   - formats: [apk]
     license: Apache 2.0
-    package_name: krmfnbuiltin
+    package_name: karmafun
     file_name_template: >-
       {{ .PackageName }}-
       {{- .Version }}.
@@ -51,41 +53,43 @@ nfpms:
       {{- else }}{{ .Arch }}{{ end }}
       {{- if .Arm }}v{{ .Arm }}{{ end }}
       {{- if .Mips }}_{{ .Mips }}{{ end }}
-    maintainer: Kaweezle <kaweezle-devel@kaweezle.com>
+    maintainer: Karmafun <karmafun-devel@karmafun.dev>
     description: KRM function (Kustomize) to decrypt SOPS encoded resources
-    homepage: https://github.com/kaweezle/krmfnbuiltin
+    homepage: https://github.com/karmafun/karmafun
     bindir: /usr/bin
     apk:
       signature:
-        key_file: gpg_key.asc
+        key_file: kaweezle-devel@kaweezle.com-c9d89864.rsa
         key_name: kaweezle-devel@kaweezle.com-c9d89864.rsa.pub
 release:
   extra_files:
     - glob: ./kaweezle-devel@kaweezle.com-c9d89864.rsa.pub
-dockers:
-  - image_templates:
-      - "ghcr.io/kaweezle/krmfnbuiltin:latest"
-      - "ghcr.io/kaweezle/krmfnbuiltin:{{ .Version }}"
+dockers_v2:
+  - images:
+      - "ghcr.io/karmafun/karmafun"
+    tags:
+      - latest
+      - "{{ .Version }}"
     dockerfile: Dockerfile
-    build_flag_templates:
-      - --label=org.opencontainers.image.title={{ .ProjectName }}
-      - --label=org.opencontainers.image.description={{ .ProjectName }}
-      - --label=org.opencontainers.image.url=https://github.com/kaweezle/krmfnbuiltin
-      - --label=org.opencontainers.image.source=https://github.com/kaweezle/krmfnbuiltin
-      - --label=org.opencontainers.image.version={{ .Version }}
-      - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
-      - --label=org.opencontainers.image.revision={{ .FullCommit }}
-      - --label=org.opencontainers.image.licenses=Apache-2.0
-scoop:
-  bucket:
-    owner: kaweezle
-    name: scoop-bucket
-    branch: main
-    token: "{{ .Env.SCOOP_BUCKET_GITHUB_TOKEN }}"
-  commit_author:
-    name: Antoine Martin
-    email: antoine@openance.com
-  commit_msg_template: "Scoop update for {{ .ProjectName }} version {{ .Tag }}"
-  homepage: https://github.com/kaweezle/krmfnbuiltin
-  description: "Kustomize SOPS KRM function"
-  license: Apache-2.0
+    labels:
+      "org.opencontainers.image.title": "{{ .ProjectName }}"
+      "org.opencontainers.image.description": "{{ .ProjectName }}"
+      "org.opencontainers.image.url": "https://github.com/karmafun/karmafun"
+      "org.opencontainers.image.source": "https://github.com/karmafun/karmafun"
+      "org.opencontainers.image.version": "{{ .Version }}"
+      "org.opencontainers.image.created": '{{ time "2006-01-02T15:04:05Z07:00" }}'
+      "org.opencontainers.image.revision": "{{ .FullCommit }}"
+      "org.opencontainers.image.licenses": "Apache-2.0"
+scoops:
+  - repository:
+      owner: kaweezle
+      name: scoop-bucket
+      branch: main
+      token: "{{ .Env.SCOOP_BUCKET_GITHUB_TOKEN }}"
+    commit_author:
+      name: Karmafun Bot
+      email: karmafun-devel@karmafun.dev
+    commit_msg_template: "Scoop update for {{ .ProjectName }} version {{ .Tag }}"
+    homepage: https://github.com/karmafun/karmafun
+    description: "Kustomize SOPS KRM function"
+    license: Apache-2.0

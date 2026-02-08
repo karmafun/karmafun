@@ -1,5 +1,7 @@
 package utils
 
+// cSpell: words konfig
+
 import "sigs.k8s.io/kustomize/api/konfig"
 
 const (
@@ -17,7 +19,7 @@ const (
 	// annotations
 	ConfigurationAnnotationDomain = "config.kubernetes.io"
 
-	LocalConfigurationAnnotationDomain = "config.kaweezle.com"
+	LocalConfigurationAnnotationDomain = "config.karmafun.dev"
 
 	// Function configuration annotation
 	FunctionAnnotationFunction = ConfigurationAnnotationDomain + "/function"

@@ -6,10 +6,10 @@ metadata:
   name: configuration-map
   namespace: argocd
   annotations:
-    config.kaweezle.com/local-config: "true"
+    config.karmafun.dev/local-config: "true"
     config.kubernetes.io/function: |
       exec:
-        path: ../../krmfnbuiltin
+        path: ../../karmafun
 # When using GitConfigMapGenerator, these are automatically injected
 literals:
   - repoURL=https://github.com/antoinemartin/autocloud.git
