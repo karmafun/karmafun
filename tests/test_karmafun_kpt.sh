@@ -7,6 +7,9 @@
 #set -uexo pipefail
 set -e pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
 temp_file=$(mktemp)
 temp_file_2=$(mktemp)
 
