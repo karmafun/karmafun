@@ -9,8 +9,6 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/pkg/errors"
-	"sigs.k8s.io/kustomize/api/loader"
 	"sigs.k8s.io/kustomize/api/resmap"
 	"sigs.k8s.io/kustomize/api/resource"
 	"sigs.k8s.io/kustomize/api/types"
@@ -441,7 +439,10 @@ func loadSource(h *resmap.PluginHelpers, path string) ([]*yaml.RNode, error) {
 	}
 	source, err := h.ResmapFactory().FromFile(h.Loader(), path)
 	if err != nil {
-		if errors.Is(err, loader.ErrHTTP) {
+		// FIXME: Before we had an exported type. Now the type is internal to kustomize, so we have to check the error
+		// message instead of the type. This is brittle but there doesn't seem to be a better option without copying
+		// the FromFile code into our plugin.
+		if err.Error() == "HTTP Error" {
 			return sourceNodes, fmt.Errorf("while reading source %s: %w", path, err)
 		}
 
