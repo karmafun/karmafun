@@ -10,6 +10,9 @@ on:
 jobs:
   goreleaser:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -41,13 +44,3 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SCOOP_BUCKET_GITHUB_TOKEN: ${{ secrets.REPO_ACCESS_TOKEN }}
-      - name: Trigger APK repo build
-        uses: peter-evans/repository-dispatch@v2
-        if: github.event_name == 'push'
-        with:
-          token: ${{ secrets.ROOTFS_ACCESS_TOKEN }}
-          repository: kaweezle/kaweezle.github.io
-          event-type: karmafun-release
-          client-payload: >-
-            {"version": "${{ github.ref_name }}", "ref": "${{ github.ref }}",
-            "sha": "${{ github.sha }}"}
