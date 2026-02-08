@@ -1,0 +1,14 @@
+apiVersion: kcl.dev/v1alpha1
+kind: KCLTransformer
+metadata:
+  name: generate-certificates
+  annotations:
+    # This will prune the values that are not used in the generated output.
+    config.karmafun.dev/prune-local: "true"
+    config.kubernetes.io/function: |
+      exec:
+        path: ../../karmafun
+spec:
+  dependencies: |
+    cert-manager = "0.3.0"
+  source: ./functions/transformer.k

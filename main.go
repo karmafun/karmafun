@@ -99,19 +99,19 @@ func (p *processor) Process(rl *framework.ResourceList) error {
 		return nil
 	}
 
-	yamlNode := config.YNode()
-	var yamlBytes []byte
-	yamlBytes, err = yaml.Marshal(yamlNode)
-	if err != nil {
-		return fmt.Errorf("marshaling yaml from res %s: %w", res.OrgId(), err)
-	}
 	helpers, err := plugins.NewPluginHelpers()
 	if err != nil {
 		return fmt.Errorf("cannot build Plugin helpers: %w", err)
 	}
-	err = plugin.Config(helpers, yamlBytes)
-	if err != nil {
-		return fmt.Errorf("plugin %s fails configuration: %w", res.OrgId(), err)
+	if fnConfigurable, ok := plugin.(plugins.FunctionConfigConfigurable); ok {
+		if err = fnConfigurable.ConfigureWithFunctionConfig(helpers, config); err != nil {
+			return fmt.Errorf("configuring plugin with function config: %w", err)
+		}
+	} else {
+		err = plugin.Config(helpers, []byte(config.MustString()))
+		if err != nil {
+			return fmt.Errorf("plugin %s fails configuration: %w", res.OrgId(), err)
+		}
 	}
 
 	switch v := plugin.(type) {

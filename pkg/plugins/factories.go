@@ -14,9 +14,14 @@ import (
 	"sigs.k8s.io/kustomize/api/types"
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 	"sigs.k8s.io/kustomize/kyaml/resid"
+	"sigs.k8s.io/kustomize/kyaml/yaml"
 
 	"github.com/karmafun/karmafun/pkg/extras"
 )
+
+type FunctionConfigConfigurable interface {
+	ConfigureWithFunctionConfig(h *resmap.PluginHelpers, functionConfig *yaml.RNode) error
+}
 
 //go:generate go run golang.org/x/tools/cmd/stringer -type=BuiltinPluginType
 type BuiltinPluginType int
@@ -45,6 +50,8 @@ const (
 	RemoveTransformer
 	KustomizationGenerator
 	SopsGenerator
+	KCLGenerator
+	KCLTransformer
 )
 
 var stringToBuiltinPluginTypeMap map[string]BuiltinPluginType
@@ -54,7 +61,7 @@ func init() { //nolint:gochecknoinits // kustomize pattern used for plugins.
 }
 
 func makeStringToBuiltinPluginTypeMap() map[string]BuiltinPluginType {
-	result := make(map[string]BuiltinPluginType, 23)
+	result := make(map[string]BuiltinPluginType, 25)
 	for k := range TransformerFactories {
 		result[k.String()] = k
 	}
@@ -117,6 +124,7 @@ var TransformerFactories = map[BuiltinPluginType]func() resmap.TransformerPlugin
 	ReplicaCountTransformer:        builtins.NewReplicaCountTransformerPlugin,
 	ValueAddTransformer:            builtins.NewValueAddTransformerPlugin,
 	RemoveTransformer:              extras.NewRemoveTransformerPlugin,
+	KCLTransformer:                 extras.NewKCLTransformerPlugin,
 	// Do not wired SortOrderTransformer as a builtin plugin.
 	// We only want it to be available in the top-level kustomization.
 	// See: https://github.com/kubernetes-sigs/kustomize/issues/3913
@@ -130,6 +138,7 @@ var GeneratorFactories = map[BuiltinPluginType]func() resmap.GeneratorPlugin{
 	GitConfigMapGenerator:       extras.NewGitConfigMapGeneratorPlugin,
 	KustomizationGenerator:      extras.NewKustomizationGeneratorPlugin,
 	SopsGenerator:               extras.NewSopsGeneratorPlugin,
+	KCLGenerator:                extras.NewKCLGeneratorPlugin,
 }
 
 func MakeBuiltinPlugin(r resid.Gvk) (resmap.Configurable, error) {

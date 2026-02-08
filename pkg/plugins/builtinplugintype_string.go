@@ -31,15 +31,18 @@ func _() {
 	_ = x[RemoveTransformer-20]
 	_ = x[KustomizationGenerator-21]
 	_ = x[SopsGenerator-22]
+	_ = x[KCLGenerator-23]
+	_ = x[KCLTransformer-24]
 }
 
-const _BuiltinPluginType_name = "UnknownAnnotationsTransformerConfigMapGeneratorIAMPolicyGeneratorHashTransformerImageTagTransformerLabelTransformerNamespaceTransformerPatchJson6902TransformerPatchStrategicMergeTransformerPatchTransformerPrefixSuffixTransformerPrefixTransformerSuffixTransformerReplicaCountTransformerSecretGeneratorValueAddTransformerHelmChartInflationGeneratorReplacementTransformerGitConfigMapGeneratorRemoveTransformerKustomizationGeneratorSopsGenerator"
+const _BuiltinPluginType_name = "UnknownAnnotationsTransformerConfigMapGeneratorIAMPolicyGeneratorHashTransformerImageTagTransformerLabelTransformerNamespaceTransformerPatchJson6902TransformerPatchStrategicMergeTransformerPatchTransformerPrefixSuffixTransformerPrefixTransformerSuffixTransformerReplicaCountTransformerSecretGeneratorValueAddTransformerHelmChartInflationGeneratorReplacementTransformerGitConfigMapGeneratorRemoveTransformerKustomizationGeneratorSopsGeneratorKCLGeneratorKCLTransformer"
 
-var _BuiltinPluginType_index = [...]uint16{0, 7, 29, 47, 65, 80, 99, 115, 135, 159, 189, 205, 228, 245, 262, 285, 300, 319, 346, 368, 389, 406, 428, 441}
+var _BuiltinPluginType_index = [...]uint16{0, 7, 29, 47, 65, 80, 99, 115, 135, 159, 189, 205, 228, 245, 262, 285, 300, 319, 346, 368, 389, 406, 428, 441, 453, 467}
 
 func (i BuiltinPluginType) String() string {
-	if i < 0 || i >= BuiltinPluginType(len(_BuiltinPluginType_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_BuiltinPluginType_index)-1 {
 		return "BuiltinPluginType(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _BuiltinPluginType_name[_BuiltinPluginType_index[i]:_BuiltinPluginType_index[i+1]]
+	return _BuiltinPluginType_name[_BuiltinPluginType_index[idx]:_BuiltinPluginType_index[idx+1]]
 }

@@ -12,6 +12,10 @@ builds:
       - darwin
       - linux
       - windows
+    # We limit on these architectures because these are the ones for which KCL is provided.
+    goarch:
+      - amd64
+      - arm64
     mod_timestamp: "{{ .CommitTimestamp }}"
     flags:
       - -trimpath
