@@ -35,7 +35,7 @@ jobs:
         uses: goreleaser/goreleaser-action@v6
         with:
           version: latest
-          args: ${{ github.event_name == 'push' && 'release --rm-dist' || '--snapshot --skip-publish --rm-dist' }}
+          args: ${{ github.event_name == 'push' && 'release --clean' || '--snapshot --skip=publish --clean' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SCOOP_BUCKET_GITHUB_TOKEN: ${{ secrets.REPO_ACCESS_TOKEN }}
