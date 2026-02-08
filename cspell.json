@@ -1,16 +1,28 @@
 {
   "version": "0.2",
   "language": "en",
-  "ignorePaths": ["go.sum", "go.mod", "tests/**/*.yaml"],
+  "ignorePaths": [
+    "go.sum",
+    "go.mod",
+    "tests/**/*.yaml"
+  ],
   "dictionaryDefinitions": [],
-  "dictionaries": ["bash", "docker", "golang", "terraform", "softwareTerms"],
+  "dictionaries": [
+    "bash",
+    "docker",
+    "golang",
+    "terraform",
+    "softwareTerms"
+  ],
   "words": [
     "configmap",
     "covermode",
     "coverprofile",
     "daemonset",
+    "dupl",
     "finalizer",
     "finalizers",
+    "getsops",
     "gochecknoinits",
     "golangci",
     "goreleaser",

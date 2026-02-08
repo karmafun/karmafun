@@ -1,13 +1,14 @@
 package plugins
 
-// cSpell: words filesys
+// cSpell: words filesys restrictor pldr gosec govet
 import (
 	"fmt"
-	"os"
+	"unsafe"
 
 	//nolint:staticcheck // mimics the kustomize pattern used for plugins.
 	"sigs.k8s.io/kustomize/api/builtins"
-	fLdr "sigs.k8s.io/kustomize/api/loader"
+	"sigs.k8s.io/kustomize/api/ifc"
+	fLdr "sigs.k8s.io/kustomize/api/pkg/loader"
 	"sigs.k8s.io/kustomize/api/provider"
 	"sigs.k8s.io/kustomize/api/resmap"
 	"sigs.k8s.io/kustomize/api/types"
@@ -142,23 +143,38 @@ func MakeBuiltinPlugin(r resid.Gvk) (resmap.Configurable, error) {
 	return nil, fmt.Errorf("unable to load builtin %s", r)
 }
 
+func RestrictionNone(
+	_ filesys.FileSystem, _ filesys.ConfirmedDir, path string,
+) (string, error) {
+	return path, nil
+}
+
+type LoadRestrictorFunc func(
+	filesys.FileSystem, filesys.ConfirmedDir, string) (string, error)
+
+//nolint:govet // Data structure alignment matches kustomize's internal loader.
+type FileLoader struct {
+	referrer       *FileLoader
+	root           filesys.ConfirmedDir
+	loadRestrictor LoadRestrictorFunc
+}
+
 func NewPluginHelpers() (*resmap.PluginHelpers, error) {
 	depProvider := provider.NewDepProvider()
 
 	fSys := filesys.MakeFsOnDisk()
-	path, err := os.Getwd()
-	if err != nil {
-		return nil, fmt.Errorf("getting current working directory: %w", err)
-	}
 	resmapFactory := resmap.NewFactory(depProvider.GetResourceFactory())
 	resmapFactory.RF().IncludeLocalConfigs = true
 
-	lr := fLdr.RestrictionNone
-
-	ldr, err := fLdr.NewLoader(lr, path, fSys)
-	if err != nil {
-		return nil, fmt.Errorf("creating loader: %w", err)
-	}
+	// The loader creation methods have gone internal in kustomize.
+	// We have to create a loader and then use unsafe to modify the load restrictor to allow loading from any path.
+	// This is brittle but there doesn't seem to be a better option without copying the loader code into our plugin.
+	var ldr ifc.Loader
+	pldr := fLdr.NewFileLoaderAtCwd(fSys)
+	ptr := unsafe.Pointer(pldr) //nolint:gosec // we need to use unsafe to modify the load restrictor.
+	unrestricted := (*FileLoader)(ptr)
+	unrestricted.loadRestrictor = RestrictionNone
+	ldr = pldr
 
 	config := types.DisabledPluginConfig()
 	config.HelmConfig.Enabled = true

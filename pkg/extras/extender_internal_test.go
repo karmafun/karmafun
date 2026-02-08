@@ -1,3 +1,4 @@
+//nolint:dupl // there is some duplication in the test cases but it's not worth the abstraction
 package extras
 
 // cSpell: words lithammer sishserver holepunch citest uninode
@@ -7,38 +8,31 @@ import (
 	"testing"
 
 	"github.com/lithammer/dedent"
-	"github.com/stretchr/testify/suite"
+	"github.com/stretchr/testify/require"
 	"sigs.k8s.io/kustomize/kyaml/kio"
 	kyaml_utils "sigs.k8s.io/kustomize/kyaml/utils"
 	"sigs.k8s.io/kustomize/kyaml/yaml"
 )
 
-type ExtenderTestSuite struct {
-	suite.Suite
-}
-
-func (s *ExtenderTestSuite) SetupTest() {
-}
-
-func (s *ExtenderTestSuite) TeardownTest() {
-}
-
-func (s *ExtenderTestSuite) TestSplitPath() {
-	require := s.Require()
+func TestSplitPath(t *testing.T) {
+	t.Parallel()
+	req := require.New(t)
 	p := "toto.tata.!!yaml.toto.tata"
 	path := kyaml_utils.SmarterPathSplitter(p, ".")
 
 	extensions := []*ExtendedSegment{}
 	remainder, err := splitExtendedPath(path, &extensions)
 
-	require.NoError(err)
-	require.Len(remainder, 2, "Remainder path should be 2")
-	require.Len(extensions, 1, "Should only have one extension")
-	require.Equal("yaml", extensions[0].Encoding, "Extension should be yaml")
-	require.Len(extensions[0].Path, 2, "Extension path len should be 2")
+	req.NoError(err)
+	req.Len(remainder, 2, "Remainder path should be 2")
+	req.Len(extensions, 1, "Should only have one extension")
+	req.Equal("yaml", extensions[0].Encoding, "Extension should be yaml")
+	req.Len(extensions[0].Path, 2, "Extension path len should be 2")
 }
 
-func (s *ExtenderTestSuite) TestRegexExtender() {
+func TestRegexExtender(t *testing.T) {
+	t.Parallel()
+	req := require.New(t)
 	text := dedent.Dedent(`
     PubkeyAcceptedKeyTypes +ssh-rsa
     Host sishserver
@@ -67,24 +61,25 @@ func (s *ExtenderTestSuite) TestRegexExtender() {
       RemoteCommand sni-proxy=true
       RemoteForward citest.holepunch.in:443 traefik.traefik.svc:443
     `)
-	require := s.Require()
 	path := &ExtendedSegment{
 		Encoding: "regex",
 		Path:     []string{`^\s+HostName\s+(\S+)\s*$`, `1`},
 	}
 
 	extender, err := path.Extender([]byte(text))
-	require.NoError(err)
-	require.NotNil(extender)
+	req.NoError(err)
+	req.NotNil(extender)
 
-	require.NoError(extender.Set(path.Path, []byte("karmafun.dev")))
+	req.NoError(extender.Set(path.Path, []byte("karmafun.dev")))
 
 	out, err := extender.GetPayload()
-	require.NoError(err)
-	require.Equal(expected, string(out), "Text should be modified")
+	req.NoError(err)
+	req.Equal(expected, string(out), "Text should be modified")
 }
 
-func (s *ExtenderTestSuite) TestBase64Extender() {
+func TestBase64Extender(t *testing.T) {
+	t.Parallel()
+	req := require.New(t)
 	//nolint:lll // Base64 string, hard to break into multiple lines
 	encoded := "UHVia2V5QWNjZXB0ZWRLZXlUeXBlcyArc3NoLXJzYQpIb3N0IHNpc2hzZXJ2ZXIKICBIb3N0TmFtZSBob2xlcHVuY2guaW4KICBQb3J0IDIyMjIKICBCYXRjaE1vZGUgeWVzCiAgSWRlbnRpdHlGaWxlIH4vLnNzaF9rZXlzL2lkX3JzYQogIElkZW50aXRpZXNPbmx5IHllcwogIExvZ0xldmVsIEVSUk9SCiAgU2VydmVyQWxpdmVJbnRlcnZhbCAxMAogIFNlcnZlckFsaXZlQ291bnRNYXggMgogIFJlbW90ZUNvbW1hbmQgc25pLXByb3h5PXRydWUKICBSZW1vdGVGb3J3YXJkIGNpdGVzdC5ob2xlcHVuY2guaW46NDQzIHRyYWVmaWsudHJhZWZpay5zdmM6NDQzCg=="
 	decodedExpected := dedent.Dedent(`
@@ -105,43 +100,42 @@ func (s *ExtenderTestSuite) TestBase64Extender() {
 	//nolint:lll // Base64 string, hard to break into multiple lines
 	modifiedEncoded := "UHVia2V5QWNjZXB0ZWRLZXlUeXBlcyArc3NoLXJzYQpIb3N0IHNpc2hzZXJ2ZXIKICBIb3N0TmFtZSBrYXJtYWZ1bi5kZXYKICBQb3J0IDIyMjIKICBCYXRjaE1vZGUgeWVzCiAgSWRlbnRpdHlGaWxlIH4vLnNzaF9rZXlzL2lkX3JzYQogIElkZW50aXRpZXNPbmx5IHllcwogIExvZ0xldmVsIEVSUk9SCiAgU2VydmVyQWxpdmVJbnRlcnZhbCAxMAogIFNlcnZlckFsaXZlQ291bnRNYXggMgogIFJlbW90ZUNvbW1hbmQgc25pLXByb3h5PXRydWUKICBSZW1vdGVGb3J3YXJkIGNpdGVzdC5ob2xlcHVuY2guaW46NDQzIHRyYWVmaWsudHJhZWZpay5zdmM6NDQzCg=="
 
-	require := s.Require()
-
 	p := `!!base64.!!regex.\s+HostName\s+(\S+).1`
 	path := kyaml_utils.SmarterPathSplitter(p, ".")
 
 	extensions := []*ExtendedSegment{}
 	prefix, err := splitExtendedPath(path, &extensions)
-	require.NoError(err)
-	require.Empty(prefix, "There should be no prefix")
-	require.Len(extensions, 2, "There should be 2 extensions")
-	require.Equal("base64", extensions[0].Encoding, "The first extension should be base64")
+	req.NoError(err)
+	req.Empty(prefix, "There should be no prefix")
+	req.Len(extensions, 2, "There should be 2 extensions")
+	req.Equal("base64", extensions[0].Encoding, "The first extension should be base64")
 
 	b64Ext := extensions[0]
 	b64Extender, err := b64Ext.Extender([]byte(encoded))
-	require.NoError(err)
-	require.IsType(&base64Extender{}, b64Extender, "Should be a base64 extender")
+	req.NoError(err)
+	req.IsType(&base64Extender{}, b64Extender, "Should be a base64 extender")
 
 	decoded, err := b64Extender.Get(b64Ext.Path)
-	require.NoError(err)
-	require.Equal(decodedExpected, string(decoded), "bad base64 decoding")
+	req.NoError(err)
+	req.Equal(decodedExpected, string(decoded), "bad base64 decoding")
 
 	regexExt := extensions[1]
 	reExtender, err := regexExt.Extender(decoded)
-	require.NoError(err)
-	require.IsType(&regexExtender{}, reExtender, "Should be a regex extender")
+	req.NoError(err)
+	req.IsType(&regexExtender{}, reExtender, "Should be a regex extender")
 
-	require.NoError(reExtender.Set(regexExt.Path, []byte("karmafun.dev")))
+	req.NoError(reExtender.Set(regexExt.Path, []byte("karmafun.dev")))
 	modified, err := reExtender.GetPayload()
-	require.NoError(err)
-	require.NoError(b64Extender.Set(b64Ext.Path, modified))
+	req.NoError(err)
+	req.NoError(b64Extender.Set(b64Ext.Path, modified))
 	final, err := b64Extender.GetPayload()
-	require.NoError(err)
-	require.Equal(modifiedEncoded, string(final), "final base64 is bad")
+	req.NoError(err)
+	req.Equal(modifiedEncoded, string(final), "final base64 is bad")
 }
 
-func (s *ExtenderTestSuite) TestYamlExtender() {
-	require := s.Require()
+func TestYamlExtender(t *testing.T) {
+	t.Parallel()
+	req := require.New(t)
 	source := dedent.Dedent(`
     uninode: true
     common:
@@ -162,30 +156,31 @@ func (s *ExtenderTestSuite) TestYamlExtender() {
 
 	extensions := []*ExtendedSegment{}
 	prefix, err := splitExtendedPath(path, &extensions)
-	require.NoError(err)
-	require.Empty(prefix, "There should be no prefix")
-	require.Len(extensions, 1, "There should be 2 extensions")
-	require.Equal("yaml", extensions[0].Encoding, "The first extension should be base64")
+	req.NoError(err)
+	req.Empty(prefix, "There should be no prefix")
+	req.Len(extensions, 1, "There should be 2 extensions")
+	req.Equal("yaml", extensions[0].Encoding, "The first extension should be base64")
 
 	yamlXP := extensions[0]
 	yamlExt, err := yamlXP.Extender([]byte(source))
-	require.NoError(err)
+	req.NoError(err)
 	value, err := yamlExt.Get(yamlXP.Path)
-	require.NoError(err)
-	require.Equal("main", string(value), "error fetching value")
-	require.NoError(yamlExt.Set(yamlXP.Path, []byte("deploy/citest")))
+	req.NoError(err)
+	req.Equal("main", string(value), "error fetching value")
+	req.NoError(yamlExt.Set(yamlXP.Path, []byte("deploy/citest")))
 
 	modified, err := yamlExt.GetPayload()
-	require.NoError(err)
-	require.Equal(expected, string(modified), "final yaml")
+	req.NoError(err)
+	req.Equal(expected, string(modified), "final yaml")
 
 	value, err = yamlExt.Get(yamlXP.Path)
-	require.NoError(err)
-	require.Equal("deploy/citest", string(value), "error fetching changed value")
+	req.NoError(err)
+	req.Equal("deploy/citest", string(value), "error fetching changed value")
 }
 
-func (s *ExtenderTestSuite) TestYamlExtenderWithSequence() {
-	require := s.Require()
+func TestYamlExtenderWithSequence(t *testing.T) {
+	t.Parallel()
+	req := require.New(t)
 	source := dedent.Dedent(`
     - name: common.targetRevision
       value: main
@@ -204,23 +199,24 @@ func (s *ExtenderTestSuite) TestYamlExtenderWithSequence() {
 
 	extensions := []*ExtendedSegment{}
 	prefix, err := splitExtendedPath(path, &extensions)
-	require.NoError(err)
-	require.Empty(prefix, "There should be no prefix")
-	require.Len(extensions, 1, "There should be 2 extensions")
-	require.Equal("yaml", extensions[0].Encoding, "The first extension should be base64")
+	req.NoError(err)
+	req.Empty(prefix, "There should be no prefix")
+	req.Len(extensions, 1, "There should be 2 extensions")
+	req.Equal("yaml", extensions[0].Encoding, "The first extension should be base64")
 
 	yamlXP := extensions[0]
 	yamlExt, err := yamlXP.Extender([]byte(source))
-	require.NoError(err)
-	require.NoError(yamlExt.Set(yamlXP.Path, []byte("deploy/citest")))
+	req.NoError(err)
+	req.NoError(yamlExt.Set(yamlXP.Path, []byte("deploy/citest")))
 
 	modified, err := yamlExt.GetPayload()
-	require.NoError(err)
-	require.Equal(expected, string(modified), "final yaml")
+	req.NoError(err)
+	req.Equal(expected, string(modified), "final yaml")
 }
 
-func (s *ExtenderTestSuite) TestYamlExtenderWithYaml() {
-	require := s.Require()
+func TestYamlExtenderWithYaml(t *testing.T) {
+	t.Parallel()
+	req := require.New(t)
 	sources, err := (&kio.ByteReader{Reader: bytes.NewBufferString(`
 common: |
   uninode: true
@@ -229,8 +225,8 @@ common: |
   apps:
     enabled: true
 `)}).Read()
-	require.NoError(err)
-	require.Len(sources, 1)
+	req.NoError(err)
+	req.Len(sources, 1)
 	source := sources[0]
 
 	expected := dedent.Dedent(`
@@ -248,37 +244,38 @@ common:
     targetRevision: deploy/citest
     repoURL: https://github.com/antoinemartin/autocloud.git
 `)}).Read()
-	require.NoError(err)
-	require.Len(replacements, 1)
+	req.NoError(err)
+	req.Len(replacements, 1)
 	replacement := replacements[0]
 
 	p := `common.!!yaml.common`
 	path := kyaml_utils.SmarterPathSplitter(p, ".")
 	e, err := NewExtendedPath(path)
-	require.NoError(err)
-	require.Len(e.ResourcePath, 1, "no resource path")
+	req.NoError(err)
+	req.Len(e.ResourcePath, 1, "no resource path")
 
 	sourcePath := []string{"common"}
 
 	target, err := source.Pipe(&yaml.PathGetter{Path: e.ResourcePath})
-	require.NoError(err)
+	req.NoError(err)
 
 	value, err := replacement.Pipe(&yaml.PathGetter{Path: sourcePath})
-	require.NoError(err)
+	req.NoError(err)
 	err = e.Apply(target, value)
-	require.NoError(err)
+	req.NoError(err)
 
 	var b bytes.Buffer
 	err = (&kio.ByteWriter{Writer: &b}).Write(sources)
-	require.NoError(err)
+	req.NoError(err)
 
 	sString, err := source.String()
-	require.NoError(err)
-	require.Equal(expected, b.String(), sString, "replacement failed")
+	req.NoError(err)
+	req.Equal(expected, b.String(), sString, "replacement failed")
 }
 
-func (s *ExtenderTestSuite) TestJsonExtender() {
-	require := s.Require()
+func TestJsonExtender(t *testing.T) {
+	t.Parallel()
+	req := require.New(t)
 	source := `{
   "common": {
     "targetRevision": "main"
@@ -304,30 +301,31 @@ func (s *ExtenderTestSuite) TestJsonExtender() {
 
 	extensions := []*ExtendedSegment{}
 	prefix, err := splitExtendedPath(path, &extensions)
-	require.NoError(err)
-	require.Empty(prefix, "There should be no prefix")
-	require.Len(extensions, 1, "There should be 2 extensions")
-	require.Equal("json", extensions[0].Encoding, "The first extension should be json")
+	req.NoError(err)
+	req.Empty(prefix, "There should be no prefix")
+	req.Len(extensions, 1, "There should be 2 extensions")
+	req.Equal("json", extensions[0].Encoding, "The first extension should be json")
 
 	jsonXP := extensions[0]
 	jsonExt, err := jsonXP.Extender([]byte(source))
-	require.NoError(err)
+	req.NoError(err)
 	value, err := jsonExt.Get(jsonXP.Path)
-	require.NoError(err)
-	require.Equal("main", string(value), "error fetching value")
-	require.NoError(jsonExt.Set(jsonXP.Path, []byte("deploy/citest")))
+	req.NoError(err)
+	req.Equal("main", string(value), "error fetching value")
+	req.NoError(jsonExt.Set(jsonXP.Path, []byte("deploy/citest")))
 
 	modified, err := jsonExt.GetPayload()
-	require.NoError(err)
-	require.Equal(expected, string(modified), "final json")
+	req.NoError(err)
+	req.Equal(expected, string(modified), "final json")
 
 	value, err = jsonExt.Get(jsonXP.Path)
-	require.NoError(err)
-	require.Equal("deploy/citest", string(value), "error fetching changed value")
+	req.NoError(err)
+	req.Equal("deploy/citest", string(value), "error fetching changed value")
 }
 
-func (s *ExtenderTestSuite) TestJsonArrayExtender() {
-	require := s.Require()
+func TestJsonArrayExtender(t *testing.T) {
+	t.Parallel()
+	req := require.New(t)
 	source := `[
   {
     "name": "targetRevision",
@@ -355,30 +353,31 @@ func (s *ExtenderTestSuite) TestJsonArrayExtender() {
 
 	extensions := []*ExtendedSegment{}
 	prefix, err := splitExtendedPath(path, &extensions)
-	require.NoError(err)
-	require.Empty(prefix, "There should be no prefix")
-	require.Len(extensions, 1, "There should be 2 extensions")
-	require.Equal("json", extensions[0].Encoding, "The first extension should be json")
+	req.NoError(err)
+	req.Empty(prefix, "There should be no prefix")
+	req.Len(extensions, 1, "There should be 2 extensions")
+	req.Equal("json", extensions[0].Encoding, "The first extension should be json")
 
 	jsonXP := extensions[0]
 	jsonExt, err := jsonXP.Extender([]byte(source))
-	require.NoError(err)
+	req.NoError(err)
 	value, err := jsonExt.Get(jsonXP.Path)
-	require.NoError(err)
-	require.Equal("main", string(value), "error fetching value")
-	require.NoError(jsonExt.Set(jsonXP.Path, []byte("deploy/citest")))
+	req.NoError(err)
+	req.Equal("main", string(value), "error fetching value")
+	req.NoError(jsonExt.Set(jsonXP.Path, []byte("deploy/citest")))
 
 	modified, err := jsonExt.GetPayload()
-	require.NoError(err)
-	require.Equal(expected, string(modified), "final json")
+	req.NoError(err)
+	req.Equal(expected, string(modified), "final json")
 
 	value, err = jsonExt.Get(jsonXP.Path)
-	require.NoError(err)
-	require.Equal("deploy/citest", string(value), "error fetching changed value")
+	req.NoError(err)
+	req.Equal("deploy/citest", string(value), "error fetching changed value")
 }
 
-func (s *ExtenderTestSuite) TestTomlExtender() {
-	require := s.Require()
+func TestTomlExtender(t *testing.T) {
+	t.Parallel()
+	req := require.New(t)
 	source := `
 uninode = true
 [common]
@@ -400,30 +399,31 @@ targetRevision = 'deploy/citest'
 
 	extensions := []*ExtendedSegment{}
 	prefix, err := splitExtendedPath(path, &extensions)
-	require.NoError(err)
-	require.Empty(prefix, "There should be no prefix")
-	require.Len(extensions, 1, "There should be 2 extensions")
-	require.Equal("toml", extensions[0].Encoding, "The first extension should be toml")
+	req.NoError(err)
+	req.Empty(prefix, "There should be no prefix")
+	req.Len(extensions, 1, "There should be 2 extensions")
+	req.Equal("toml", extensions[0].Encoding, "The first extension should be toml")
 
 	tomlXP := extensions[0]
 	tomlExt, err := tomlXP.Extender([]byte(source))
-	require.NoError(err)
+	req.NoError(err)
 	value, err := tomlExt.Get(tomlXP.Path)
-	require.NoError(err)
-	require.Equal("main", string(value), "error fetching value")
-	require.NoError(tomlExt.Set(tomlXP.Path, []byte("deploy/citest")))
+	req.NoError(err)
+	req.Equal("main", string(value), "error fetching value")
+	req.NoError(tomlExt.Set(tomlXP.Path, []byte("deploy/citest")))
 
 	modified, err := tomlExt.GetPayload()
-	require.NoError(err)
-	require.Equal(expected, string(modified), "final toml")
+	req.NoError(err)
+	req.Equal(expected, string(modified), "final toml")
 
 	value, err = tomlExt.Get(tomlXP.Path)
-	require.NoError(err)
-	require.Equal("deploy/citest", string(value), "error fetching changed value")
+	req.NoError(err)
+	req.Equal("deploy/citest", string(value), "error fetching changed value")
 }
 
-func (s *ExtenderTestSuite) TestIniExtender() {
-	require := s.Require()
+func TestIniExtender(t *testing.T) {
+	t.Parallel()
+	req := require.New(t)
 	source := `
 uninode = true
 [common]
@@ -445,28 +445,24 @@ enabled = true
 
 	extensions := []*ExtendedSegment{}
 	prefix, err := splitExtendedPath(path, &extensions)
-	require.NoError(err)
-	require.Empty(prefix, "There should be no prefix")
-	require.Len(extensions, 1, "There should be 2 extensions")
-	require.Equal("ini", extensions[0].Encoding, "The first extension should be ini")
+	req.NoError(err)
+	req.Empty(prefix, "There should be no prefix")
+	req.Len(extensions, 1, "There should be 2 extensions")
+	req.Equal("ini", extensions[0].Encoding, "The first extension should be ini")
 
 	iniXP := extensions[0]
 	iniExt, err := iniXP.Extender([]byte(source))
-	require.NoError(err)
+	req.NoError(err)
 	value, err := iniExt.Get(iniXP.Path)
-	require.NoError(err)
-	require.Equal("main", string(value), "error fetching value")
-	require.NoError(iniExt.Set(iniXP.Path, []byte("deploy/citest")))
+	req.NoError(err)
+	req.Equal("main", string(value), "error fetching value")
+	req.NoError(iniExt.Set(iniXP.Path, []byte("deploy/citest")))
 
 	modified, err := iniExt.GetPayload()
-	require.NoError(err)
-	require.Equal(expected, string(modified), "final ini")
+	req.NoError(err)
+	req.Equal(expected, string(modified), "final ini")
 
 	value, err = iniExt.Get(iniXP.Path)
-	require.NoError(err)
-	require.Equal("deploy/citest", string(value), "error fetching changed value")
-}
-
-func TestExtender(t *testing.T) {
-	suite.Run(t, new(ExtenderTestSuite))
+	req.NoError(err)
+	req.Equal("deploy/citest", string(value), "error fetching changed value")
 }
