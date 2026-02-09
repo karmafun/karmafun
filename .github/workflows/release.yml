@@ -1,5 +1,5 @@
 name: Make release on tag
-# cSpell: words pubout rootfs
+# cSpell: words pubout rootfs mlugg
 
 on:
   pull_request:
@@ -36,6 +36,8 @@ jobs:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Setup zig (CGO compiler)
+        uses: mlugg/setup-zig@v2
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
         with:

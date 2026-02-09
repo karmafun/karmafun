@@ -1,6 +1,6 @@
 # This is an example .goreleaser.yml file with some sensible defaults.
 # Make sure to check the documentation at https://goreleaser.com
-# cSpell: words bindir nfpms trimpath
+# cSpell: words bindir nfpms trimpath lunwind
 version: 2
 before:
   hooks:
@@ -24,6 +24,27 @@ builds:
         main.BuildDate={{ .CommitDate }} -X main.BuiltBy=goreleaser
     binary: karmafun
     id: karmafun
+  - env:
+      - CGO_ENABLED=1
+      # - CC=x86_64-alpine-linux-musl-gcc
+      - CC=zig cc -target {{ if (eq .Arch "amd64") }}x86_64-linux-musl{{ else }}aarch64-linux-musl{{ end }} -lunwind
+    goos:
+      - linux
+    # We limit on these architectures because these are the ones for which KCL is provided.
+    goarch:
+      - amd64
+      # FIXME: There is a compilation issue on KCL in musl/arm64
+      # - arm64
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    flags:
+      - -trimpath
+    tags:
+      - musl
+    ldflags:
+      - -s -w -X main.KarmafunVersion={{.Version}} -X main.Commit={{.Commit}} -X
+        main.BuildDate={{ .CommitDate }} -X main.BuiltBy=goreleaser
+    binary: karmafun
+    id: karmafun_musl
 archives:
   - formats: [binary]
     name_template: '{{ .Binary }}_v{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ with .Arm }}v{{ . }}{{ end }}{{ with .Mips }}_{{ . }}{{ end }}{{ if not (eq .Amd64 "v1") }}{{ .Amd64 }}{{ end }}'
@@ -49,6 +70,8 @@ nfpms:
   - formats: [apk]
     license: Apache 2.0
     package_name: karmafun
+    ids:
+      - karmafun_musl
     file_name_template: >-
       {{ .PackageName }}-
       {{- .Version }}.
@@ -74,6 +97,11 @@ dockers_v2:
     tags:
       - latest
       - "{{ .Version }}"
+    ids:
+      - karmafun_musl
+    platforms:
+      - linux/amd64
+      # - linux/arm64
     dockerfile: Dockerfile
     labels:
       "org.opencontainers.image.title": "{{ .ProjectName }}"
