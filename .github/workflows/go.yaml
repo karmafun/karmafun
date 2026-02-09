@@ -40,8 +40,6 @@ jobs:
 
       - name: Test
         run: go test -v -race -covermode=atomic -coverprofile=coverage.out ./...
-        env:
-          CGO_ENABLED: 0
 
       - name: Run runtime test
         run: |
