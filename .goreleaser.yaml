@@ -1,6 +1,6 @@
 # This is an example .goreleaser.yml file with some sensible defaults.
 # Make sure to check the documentation at https://goreleaser.com
-# cSpell: words bindir nfpms trimpath lunwind
+# cSpell: words bindir nfpms trimpath lunwind linkmode extldflags
 version: 2
 before:
   hooks:
@@ -33,8 +33,7 @@ builds:
     # We limit on these architectures because these are the ones for which KCL is provided.
     goarch:
       - amd64
-      # FIXME: There is a compilation issue on KCL in musl/arm64
-      # - arm64
+      - arm64
     mod_timestamp: "{{ .CommitTimestamp }}"
     flags:
       - -trimpath
@@ -48,9 +47,17 @@ builds:
 archives:
   - formats: [binary]
     name_template: '{{ .Binary }}_v{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ with .Arm }}v{{ . }}{{ end }}{{ with .Mips }}_{{ . }}{{ end }}{{ if not (eq .Amd64 "v1") }}{{ .Amd64 }}{{ end }}'
+    id: default
+    ids:
+      - karmafun
     format_overrides:
       - goos: windows
         formats: [zip]
+  - formats: [binary]
+    id: musl
+    name_template: '{{ .Binary }}_musl_v{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ with .Arm }}v{{ . }}{{ end }}{{ with .Mips }}_{{ . }}{{ end }}{{ if not (eq .Amd64 "v1") }}{{ .Amd64 }}{{ end }}'
+    ids:
+      - karmafun_musl
 checksum:
   name_template: "SHA256SUMS"
 snapshot:
@@ -101,7 +108,7 @@ dockers_v2:
       - karmafun_musl
     platforms:
       - linux/amd64
-      # - linux/arm64
+      - linux/arm64
     dockerfile: Dockerfile
     labels:
       "org.opencontainers.image.title": "{{ .ProjectName }}"

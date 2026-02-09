@@ -38,6 +38,14 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Setup zig (CGO compiler)
         uses: mlugg/setup-zig@v2
+      - name: Setup Zig wrapper
+        run: |
+          zig_command=$(which zig)
+          echo "zig found at: $zig_command"
+          mv $zig_command "${zig_command}.orig"
+          source="$(realpath hack/zig_wrapper.sh)"
+          echo "Creating symlink from $source to $zig_command"
+          ln -s "$source" "$zig_command"
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
         with:
