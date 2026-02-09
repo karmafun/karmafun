@@ -34,7 +34,7 @@ find . -mindepth 1 -maxdepth 1 -type d | while read -r d; do
     rm -rf applications
     echo "  > Performing kustomizations..."
     kpt fn source original >"$temp_file"
-    for f in functions/*; do
+    for f in functions/*.yaml; do
         cat "$temp_file" | kpt fn eval - --exec ../../karmafun --fn-config "$f" >"$temp_file_2"
         mv "$temp_file_2" "$temp_file"
     done

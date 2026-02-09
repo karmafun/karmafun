@@ -1,6 +1,6 @@
 # karmafun
 
-<!-- cSpell: words utable citest myhost uninode websecure instana krmfnsops lastmodified sishserver holepunch sshconfig -->
+<!-- cSpell: words utable citest myhost uninode websecure instana krmfnsops lastmodified sishserver holepunch sshconfig kusion -->
 
 [![stability-beta](https://img.shields.io/badge/stability-beta-33bbff.svg)](https://github.com/mkenney/software-guides/blob/master/STABILITY-BADGES.md#beta)
 
@@ -28,6 +28,8 @@ transformation in your kustomize projects.
             <li><a href="#heredoc-generator">Heredoc generator</a></li>
             <li><a href="#kustomization-generator">Kustomization generator</a></li>
             <li><a href="#sops-decryption-generator">Sops decryption generator</a></li>
+            <li><a href="#kcl-generator">KCL Generator</a></li>
+            <li><a href="#kcl-transformer">KCL Transformer</a></li>
             <li><a href="#extended-replacement-in-structured-content">Extended replacement in structured content</a>
                 <ul><li><a href="#replacements-source-reuse">Replacements source reuse</a></li></ul>
             </li>
@@ -727,6 +729,113 @@ In order to have the generated resource with the proper kind and api version.
 **WARNING** While this second inclusion method reduces the number of files, it
 disables the [sops] Message authentication code (MAC) verification that prevents
 file tampering. Use it at your own risk.
+
+### KCL Generator
+
+The KCL Generator (`KCLRun`) generates Kubernetes resources from
+[KCL (Kusion Configuration Language)](https://kcl-lang.io/) code. KCL is a
+constraint-based record and functional programming language designed for
+configuration and policy scenarios.
+
+#### Inline KCL Code
+
+You can write KCL code directly in the function configuration:
+
+```yaml
+apiVersion: kcl.dev/v1alpha1
+kind: KCLRun
+metadata:
+  name: example-kcl-run
+  annotations:
+    config.kubernetes.io/function: |
+      exec:
+        path: karmafun
+spec:
+  source: |
+    {
+      apiVersion = "v1"
+      kind = "ConfigMap"
+      metadata.name = "example-configmap"
+      data.key = "value"
+    }
+```
+
+This will generate a ConfigMap resource with the specified configuration.
+
+#### KCL Code from File
+
+You can also reference an external KCL file:
+
+```yaml
+apiVersion: kcl.dev/v1alpha1
+kind: KCLRun
+metadata:
+  name: example-kcl-run
+  annotations:
+    config.kubernetes.io/function: |
+      exec:
+        path: karmafun
+spec:
+  source: ./kcl/configmap.k
+```
+
+Where `configmap.k` contains your KCL code:
+
+```python
+{
+  apiVersion = "v1"
+  kind = "ConfigMap"
+  metadata.name = "example-configmap"
+  data.key = "value"
+}
+```
+
+**NOTE:** The path is relative to the directory where `kustomize fn run` is
+executed, not the function configuration directory.
+
+### KCL Transformer
+
+The KCL Transformer (`KCLTransformer`) transforms existing Kubernetes resources
+using KCL code. This is particularly useful for complex transformations that are
+difficult to express with standard transformers.
+
+#### Example: Generate Certificates
+
+```yaml
+apiVersion: kcl.dev/v1alpha1
+kind: KCLTransformer
+metadata:
+  name: generate-certificates
+  annotations:
+    config.karmafun.dev/prune-local: "true"
+    config.kubernetes.io/function: |
+      exec:
+        path: karmafun
+spec:
+  dependencies: |
+    cert-manager = "0.3.0"
+  source: ./functions/transformer.k
+```
+
+The transformer can:
+
+- Read existing resources from the input
+- Apply KCL-based transformations
+- Generate new resources based on existing ones
+- Use KCL libraries and dependencies (specified in the `dependencies` field)
+
+You can find more information about the configuration of the transformer in the
+[krm-kcl site](https://github.com/kcl-lang/krm-kcl) and in the
+[KCL documentation](https://kcl-lang.io/docs/).
+
+#### Using KCL Dependencies
+
+The `dependencies` field allows you to use external KCL modules. In the example
+above, `cert-manager = "0.3.0"` makes the cert-manager KCL module available to
+your transformation code.
+
+**TIP:** Use the `config.karmafun.dev/prune-local` annotation to remove the
+transformer configuration from the output if you don't want it saved.
 
 ### Extended replacement in structured content
 

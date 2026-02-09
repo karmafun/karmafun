@@ -22,5 +22,10 @@
   "editor.renderWhitespace": "boundary",
   "editor.rulers": [80, 120],
   "go.formatTool": "default",
-  "sops.configPath": "./.sops.yaml"
+  "sops.configPath": "./.sops.yaml",
+  "go.buildTags": "musl",
+  "go.testTags": "musl",
+  "go.testEnvVars": {
+    "CC": "x86_64-alpine-linux-musl-gcc"
+  }
 }
