@@ -10,15 +10,20 @@ import (
 	"sigs.k8s.io/kustomize/kyaml/yaml"
 )
 
+type KCLPluginRun struct {
+	config.KCLRun  `         json:",inline"         yaml:",inline"`
+	ParamResources []string `json:"param_resources" yaml:"param_resources"`
+}
+
 type KCLBasePlugin struct {
 	h                     *resmap.PluginHelpers `json:"-"       yaml:"-"`
 	functionConfiguration *yaml.RNode           `json:"-"       yaml:"-"`
-	config.KCLRun         `json:",inline" yaml:",inline"`
+	KCLPluginRun          `json:",inline" yaml:",inline"`
 }
 
 func (p *KCLBasePlugin) Config(h *resmap.PluginHelpers, c []byte) error {
 	p.h = h
-	err := yaml.Unmarshal(c, &p.KCLRun)
+	err := yaml.Unmarshal(c, &p.KCLPluginRun)
 	if err != nil {
 		return fmt.Errorf("while unmarshaling KCLRunnerConfig: %w", err)
 	}
@@ -34,9 +39,56 @@ func (p *KCLBasePlugin) Config(h *resmap.PluginHelpers, c []byte) error {
 func (p *KCLBasePlugin) ConfigureWithFunctionConfig(h *resmap.PluginHelpers, functionConfig *yaml.RNode) error {
 	p.h = h
 	p.functionConfiguration = functionConfig
-	err := yaml.Unmarshal([]byte(functionConfig.MustString()), &p.KCLRun)
+	err := yaml.Unmarshal([]byte(functionConfig.MustString()), &p.KCLPluginRun)
 	if err != nil {
 		return fmt.Errorf("while decoding function configuration: %w", err)
+	}
+	return nil
+}
+
+func (p *KCLBasePlugin) loadParamResources() (resmap.ResMap, error) {
+	result := resmap.New()
+	for _, path := range p.ParamResources {
+		resources, err := loadSource(p.h, path)
+		if err != nil {
+			return nil, fmt.Errorf("while loading param resource from path %s: %w", path, err)
+		}
+		err = result.AbsorbAll(resources)
+		if err != nil {
+			return nil, fmt.Errorf("while absorbing param resources from path %s: %w", path, err)
+		}
+	}
+	return result, nil
+}
+
+func (p *KCLBasePlugin) setParamResourcesInFunctionConfig(paramResources resmap.ResMap) error {
+	node := &yaml.Node{Kind: yaml.SequenceNode}
+	for _, r := range paramResources.ToRNodeSlice() {
+		node.Content = append(node.Content, r.YNode())
+	}
+	seq := yaml.NewRNode(node)
+	err := p.functionConfiguration.PipeE(
+		yaml.Lookup("spec"),
+		yaml.LookupCreate(yaml.MappingNode, "params"),
+		yaml.SetField("resources", seq),
+	)
+	if err != nil {
+		return fmt.Errorf("while setting param resources in function configuration: %w", err)
+	}
+	return nil
+}
+
+func (p *KCLBasePlugin) prepareFunctionConfig() error {
+	if len(p.ParamResources) == 0 {
+		return nil
+	}
+	paramResources, err := p.loadParamResources()
+	if err != nil {
+		return fmt.Errorf("while loading param resources: %w", err)
+	}
+	err = p.setParamResourcesInFunctionConfig(paramResources)
+	if err != nil {
+		return fmt.Errorf("while setting param resources in function configuration: %w", err)
 	}
 	return nil
 }
@@ -48,7 +100,12 @@ type KCLGeneratorPlugin struct {
 }
 
 func (p *KCLGeneratorPlugin) Generate() (resmap.ResMap, error) {
-	nodes, err := p.Transform(nil, p.functionConfiguration)
+	err := p.prepareFunctionConfig()
+	if err != nil {
+		return nil, fmt.Errorf("while preparing function configuration: %w", err)
+	}
+	var nodes []*yaml.RNode
+	nodes, err = p.Transform(nil, p.functionConfiguration)
 	if err != nil {
 		return nil, fmt.Errorf("while transforming resources: %w", err)
 	}
@@ -72,7 +129,12 @@ type KCLTransformerPlugin struct {
 }
 
 func (p *KCLTransformerPlugin) Transform(m resmap.ResMap) error {
-	nodes, err := p.KCLRun.Transform(m.ToRNodeSlice(), p.functionConfiguration)
+	err := p.prepareFunctionConfig()
+	if err != nil {
+		return fmt.Errorf("while preparing function configuration: %w", err)
+	}
+	var nodes []*yaml.RNode
+	nodes, err = p.KCLPluginRun.Transform(m.ToRNodeSlice(), p.functionConfiguration)
 	if err != nil {
 		return fmt.Errorf("while transforming resources: %w", err)
 	}

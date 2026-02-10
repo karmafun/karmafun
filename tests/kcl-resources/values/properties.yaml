@@ -1,0 +1,20 @@
+apiVersion: autocloud.config.karmafun.dev/v1alpha1
+kind: PlatformValues
+metadata:
+  name: autocloud-values
+  annotations:
+    config.karmafun.dev/local-config: "true"
+data:
+  domains:
+    - name: cloudforge.dev
+      dns_provider: ovh
+      namespaces:
+        - argocd
+    - name: openance.dev
+      dns_provider: ovh
+      namespaces:
+        - gitlab
+    - name: srv.cx
+      dns_provider: ovh
+      namespaces:
+        - gitlab
