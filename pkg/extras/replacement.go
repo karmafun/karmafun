@@ -28,7 +28,7 @@ type extendedFilter struct {
 // Filter replaces values of targets with values from sources.
 func (f extendedFilter) Filter(nodes []*yaml.RNode) ([]*yaml.RNode, error) {
 	sourceNodes := f.sourceNodes
-	if sourceNodes == nil {
+	if len(sourceNodes) == 0 {
 		sourceNodes = nodes
 	}
 	for i, r := range f.Replacements {
@@ -432,10 +432,9 @@ func (p *ExtendedReplacementTransformerPlugin) Config(
 	return nil
 }
 
-func loadSource(h *resmap.PluginHelpers, path string) ([]*yaml.RNode, error) {
-	var sourceNodes []*yaml.RNode
+func loadSource(h *resmap.PluginHelpers, path string) (resmap.ResMap, error) {
 	if path == "" {
-		return sourceNodes, nil
+		return resmap.New(), nil
 	}
 	source, err := h.ResmapFactory().FromFile(h.Loader(), path)
 	if err != nil {
@@ -443,29 +442,28 @@ func loadSource(h *resmap.PluginHelpers, path string) ([]*yaml.RNode, error) {
 		// message instead of the type. This is brittle but there doesn't seem to be a better option without copying
 		// the FromFile code into our plugin.
 		if err.Error() == "HTTP Error" {
-			return sourceNodes, fmt.Errorf("while reading source %s: %w", path, err)
+			return nil, fmt.Errorf("while reading source %s: %w", path, err)
 		}
 
 		source, err = runKustomizations(filesys.MakeFsOnDisk(), path)
 		if err != nil {
-			return sourceNodes, fmt.Errorf("while getting source for replacements %s: %w", path, err)
+			return nil, fmt.Errorf("while getting source for replacements %s: %w", path, err)
 		}
 	}
 
-	sourceNodes = source.ToRNodeSlice()
-	return sourceNodes, nil
+	return source, nil
 }
 
 // Transform performs the configured replacements in the specified resource map.
 func (p *ExtendedReplacementTransformerPlugin) Transform(m resmap.ResMap) error {
-	sourceNodes, err := loadSource(p.h, p.Source)
+	source, err := loadSource(p.h, p.Source)
 	if err != nil {
 		return fmt.Errorf("while loading source from path %s: %w", p.Source, err)
 	}
 
 	err = m.ApplyFilter(extendedFilter{
 		Replacements: p.Replacements,
-		sourceNodes:  sourceNodes,
+		sourceNodes:  source.ToRNodeSlice(),
 	})
 	if err != nil {
 		return fmt.Errorf("while applying replacements: %w", err)

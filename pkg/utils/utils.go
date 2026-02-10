@@ -43,59 +43,106 @@ func RemoveBuildAnnotations(r *resource.Resource) {
 	}
 }
 
-func TransferAnnotations(list []*yaml.RNode, configAnnotations map[string]string) error {
-	path := ".karmafun.yaml"
+type AnnotationProperties struct {
+	Path        string
+	Kind        string
+	ApiVersion  string
+	Index       int
+	Local       bool
+	PathSet     bool
+	IndexSet    bool
+	InjectLocal bool
+}
+
+func GeAnnotationProperties(annotations map[string]string, config bool) *AnnotationProperties {
+	var properties AnnotationProperties
 	var err error
-	startIndex := 0
 
-	_, local := configAnnotations[FunctionAnnotationLocalConfig]
+	_, properties.Local = annotations[FunctionAnnotationLocalConfig]
 
-	if annoPath, ok := configAnnotations[FunctionAnnotationPath]; ok {
-		path = annoPath
+	if properties.Path, properties.PathSet = annotations[FunctionAnnotationPath]; !properties.PathSet {
+		if config {
+			properties.Path = ".karmafun.yaml"
+		}
 	}
-
-	if annoIndex, ok := configAnnotations[FunctionAnnotationIndex]; ok {
-		startIndex, err = strconv.Atoi(annoIndex)
+	if indexStr, ok := annotations[FunctionAnnotationIndex]; ok {
+		properties.IndexSet = true
+		properties.Index, err = strconv.Atoi(indexStr)
+		// Anything that is not a valid integer means we don't want to set an index at all.
 		if err != nil {
-			return fmt.Errorf("while parsing index annotation %s: %w", annoIndex, err)
+			properties.Index = -1
 		}
 	}
+	properties.InjectLocal = annotations[FunctionAnnotationInjectLocal] == "true"
+	properties.Kind = annotations[FunctionAnnotationKind]
+	properties.ApiVersion = annotations[FunctionAnnotationApiVersion]
+	return &properties
+}
 
-	for index, r := range list {
-		annotations := r.GetAnnotations()
-		if local {
-			annotations[FunctionAnnotationLocalConfig] = "true"
+func TransferAnnotationsToNode(r *yaml.RNode, configProperties *AnnotationProperties, index int) error {
+	annotations := r.GetAnnotations()
+
+	properties := GeAnnotationProperties(annotations, false)
+
+	if configProperties.Local {
+		annotations[FunctionAnnotationLocalConfig] = "true"
+	}
+
+	actualPath := configProperties.Path
+	if properties.PathSet {
+		actualPath = properties.Path
+	}
+	var curIndex string
+	if properties.IndexSet {
+		if properties.Index >= 0 {
+			curIndex = strconv.Itoa(properties.Index)
 		}
-		if path != "" {
-			//lint:ignore SA1019 used by kustomize
-			annotations[kioutil.LegacyPathAnnotation] = path //nolint:staticcheck // still in use.
-			annotations[kioutil.PathAnnotation] = path
+	} else if configProperties.Index >= 0 && !properties.PathSet {
+		// If path is set on the resource, index should be set on the resource as well.
+		curIndex = strconv.Itoa(configProperties.Index + index)
+	}
 
-			curIndex := strconv.Itoa(startIndex + index)
+	if actualPath != "" {
+		//lint:ignore SA1019 used by kustomize
+		annotations[kioutil.LegacyPathAnnotation] = actualPath //nolint:staticcheck // still in use.
+		annotations[kioutil.PathAnnotation] = actualPath
+
+		if curIndex != "" {
 			//lint:ignore SA1019 used by kustomize
 			annotations[kioutil.LegacyIndexAnnotation] = curIndex //nolint:staticcheck // still in use.
 			annotations[kioutil.IndexAnnotation] = curIndex
 		}
+	}
 
-		if _, ok := annotations[FunctionAnnotationInjectLocal]; ok {
-			// It's an heredoc document
-			if kind, ok := configAnnotations[FunctionAnnotationKind]; ok {
-				r.SetKind(kind)
-			}
-			if apiVersion, ok := configAnnotations[FunctionAnnotationApiVersion]; ok {
-				r.SetApiVersion(apiVersion)
-			}
+	if properties.InjectLocal || configProperties.InjectLocal {
+		// It's an heredoc document
+		if configProperties.Kind != "" {
+			r.SetKind(configProperties.Kind)
 		}
+		if configProperties.ApiVersion != "" {
+			r.SetApiVersion(configProperties.ApiVersion)
+		}
+	}
 
-		delete(annotations, FunctionAnnotationInjectLocal)
-		delete(annotations, FunctionAnnotationFunction)
-		delete(annotations, FunctionAnnotationPath)
-		delete(annotations, FunctionAnnotationIndex)
-		delete(annotations, FunctionAnnotationKind)
-		delete(annotations, FunctionAnnotationApiVersion)
-		delete(annotations, filters.LocalConfigAnnotation)
-		if err := r.SetAnnotations(annotations); err != nil {
-			return fmt.Errorf("while setting annotations on resource at index %d: %w", index, err)
+	delete(annotations, FunctionAnnotationInjectLocal)
+	delete(annotations, FunctionAnnotationFunction)
+	delete(annotations, FunctionAnnotationPath)
+	delete(annotations, FunctionAnnotationIndex)
+	delete(annotations, FunctionAnnotationKind)
+	delete(annotations, FunctionAnnotationApiVersion)
+	delete(annotations, filters.LocalConfigAnnotation)
+	if err := r.SetAnnotations(annotations); err != nil {
+		return fmt.Errorf("while setting annotations on resource at index %d: %w", index, err)
+	}
+	return nil
+}
+
+func TransferAnnotations(list []*yaml.RNode, configAnnotations map[string]string) error {
+	configProperties := GeAnnotationProperties(configAnnotations, true)
+
+	for index, r := range list {
+		if err := TransferAnnotationsToNode(r, configProperties, index); err != nil {
+			return fmt.Errorf("while transferring annotations to resource at index %d: %w", index, err)
 		}
 	}
 	return nil
