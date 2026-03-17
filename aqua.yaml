@@ -10,9 +10,9 @@
 # cSpell: words getsops aquaproj kptdev
 registries:
   - type: standard
-    ref: v4.466.0 # renovate: depName=aquaproj/aqua-registry
+    ref: v4.486.0 # renovate: depName=aquaproj/aqua-registry
 packages:
-  - name: getsops/sops@v3.11.0
-  - name: kubernetes-sigs/kustomize@kustomize/v5.8.0
-  - name: goreleaser/goreleaser@v2.13.3
-  - name: kptdev/kpt@v1.0.0-beta.60
+  - name: getsops/sops@v3.12.1
+  - name: kubernetes-sigs/kustomize@kustomize/v5.8.1
+  - name: goreleaser/goreleaser@v2.14.3
+  - name: kptdev/kpt@v1.0.0-beta.61
