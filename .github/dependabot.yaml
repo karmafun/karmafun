@@ -6,9 +6,9 @@ updates:
     schedule:
       interval: "daily"
     groups:
-      "github-actions":
+      "gomod":
         patterns:
-          - "*" # Group all GitHub Actions dependencies together
+          - "*" # Group all Go module dependencies together
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
