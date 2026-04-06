@@ -7,6 +7,12 @@
       "command": "golangci-lint",
       //"args": ["run", "--enable-only", "godot"],
       "args": ["run", "--fix"],
+      "linux": {
+        "environment": {
+          "CGO_ENABLED": "1",
+          "CC": "zig cc -target x86_64-linux-musl -lunwind"
+        }
+      },
       "group": {
         "kind": "test",
         "isDefault": false

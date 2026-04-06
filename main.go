@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/spf13/cobra"
 	"sigs.k8s.io/kustomize/api/resmap"
 	"sigs.k8s.io/kustomize/api/resource"
 	"sigs.k8s.io/kustomize/kyaml/fn/framework"
@@ -11,6 +12,7 @@ import (
 	"sigs.k8s.io/kustomize/kyaml/resid"
 	"sigs.k8s.io/kustomize/kyaml/yaml"
 
+	"github.com/karmafun/karmafun/pkg/cmd/build"
 	"github.com/karmafun/karmafun/pkg/plugins"
 	"github.com/karmafun/karmafun/pkg/utils"
 )
@@ -131,11 +133,22 @@ func (p *processor) Process(rl *framework.ResourceList) error {
 }
 
 func main() {
-	cmd := command.Build(&processor{}, command.StandaloneDisabled, false)
+	logOptions := build.NewLogOptions()
+	cmd := command.Build(&processor{}, command.StandaloneEnabled, false)
 	command.AddGenerateDockerfile(cmd)
+	cmd.AddCommand(build.NewBuildCommand(nil, logOptions))
 	cmd.Version = KarmafunVersion
+	logOptions.AddFlags(cmd.PersistentFlags())
+	var calledAs string
+	cmd.PersistentPreRun = func(cmd *cobra.Command, _ []string) {
+		calledAs = cmd.CalledAs()
+		logOptions.InitLogger()
+	}
 
 	if err := cmd.Execute(); err != nil {
+		if calledAs == "build" {
+			cobra.CheckErr(err)
+		}
 		os.Exit(1)
 	}
 }

@@ -176,6 +176,10 @@ linters:
     interfacebloat:
       max: 15
 
+    gomoddirectives:
+      replace-allow-list:
+        - kcl-lang.io/lib
+
   exclusions:
     rules:
       - linters:

@@ -36,13 +36,13 @@ type SopsGeneratorPlugin struct {
 	buffer []byte
 }
 
-func Decrypt(b []byte, format formats.Format, file string, ignoreMac bool) ([]*yaml.RNode, error) {
-	store := common.StoreForFormat(format, config.NewStoresConfig())
+func Decrypt(b []byte, inFormat, outFormat formats.Format, ignoreMac bool) ([]byte, error) {
+	store := common.StoreForFormat(inFormat, config.NewStoresConfig())
 
 	// Load SOPS file and access the data key
 	tree, err := store.LoadEncryptedFile(b)
 	if err != nil {
-		return nil, fmt.Errorf("while loading encrypted file %s: %w", file, err)
+		return nil, fmt.Errorf("while loading encrypted content: %w", err)
 	}
 
 	_, err = common.DecryptTree(common.DecryptTreeOpts{
@@ -54,20 +54,32 @@ func Decrypt(b []byte, format formats.Format, file string, ignoreMac bool) ([]*y
 		Cipher:    aes.NewCipher(),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("while decrypting tree for file %s: %w", file, err)
+		return nil, fmt.Errorf("while decrypting tree: %w", err)
 	}
 
 	var data []byte
+	outStore := common.StoreForFormat(outFormat, config.NewStoresConfig())
+	if outStore == nil {
+		return nil, fmt.Errorf("unsupported output format: %v", outFormat)
+	}
 
-	data, err = store.EmitPlainFile(tree.Branches)
+	data, err = outStore.EmitPlainFile(tree.Branches)
 	if err != nil {
-		return nil, fmt.Errorf("trouble decrypting file %s: %w", file, err)
+		return nil, fmt.Errorf("trouble decrypting file: %w", err)
+	}
+	return data, nil
+}
+
+func DecryptToRNodes(b []byte, format formats.Format, ignoreMac bool) ([]*yaml.RNode, error) {
+	data, err := Decrypt(b, format, formats.Yaml, ignoreMac)
+	if err != nil {
+		return nil, fmt.Errorf("while decrypting data: %w", err)
 	}
 
 	var nodes []*yaml.RNode
 	nodes, err = kio.FromBytes(data)
 	if err != nil {
-		return nil, fmt.Errorf("while reading decrypted resources from file %s: %w", file, err)
+		return nil, fmt.Errorf("while reading decrypted resources: %w", err)
 	}
 	return nodes, nil
 }
@@ -91,7 +103,7 @@ func decryptBuffer(buffer []byte, name string, format formats.Format) ([]*yaml.R
 	if buffer == nil {
 		return nil, fmt.Errorf("buffer is nil for manifest %q", name)
 	}
-	nodes, err := Decrypt(buffer, format, name, true)
+	nodes, err := DecryptToRNodes(buffer, format, true)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding manifest %q, content -->%s<--: %w", name, string(buffer), err)
 	}
@@ -117,7 +129,7 @@ func decryptFiles(files []string, loader ifc.Loader) ([]*yaml.RNode, error) {
 		}
 
 		format := formats.FormatForPath(file)
-		fileNodes, err := Decrypt(b, format, file, false)
+		fileNodes, err := DecryptToRNodes(b, format, false)
 		if err != nil {
 			return nil, fmt.Errorf("while decrypting file %q: %w", file, err)
 		}

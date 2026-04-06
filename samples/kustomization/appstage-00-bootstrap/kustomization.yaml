@@ -1,0 +1,12 @@
+# cSpell: words gotmpl appstage
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+metadata:
+  name: appstage-00-bootstrap
+# Test the use of values in templates
+resources:
+  - ./application.yaml.gotmpl
+
+# Test the use of generators
+generators:
+  - ../secrets.sops.yaml

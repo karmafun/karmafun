@@ -76,7 +76,7 @@ const (
 	IniExtender
 )
 
-// stringToExtenderTypeMap maps encoding names to the corresponding extender
+// stringToExtenderTypeMap maps encoding names to the corresponding extender.
 var stringToExtenderTypeMap map[string]ExtenderType
 
 //nolint:gochecknoinits // mimics the kustomize pattern used for plugins.
@@ -108,7 +108,7 @@ func makeStringToExtenderTypeMap() map[string]ExtenderType {
 }
 
 // getExtenderType returns the appropriate [ExtenderType] for the passed
-// extender type name
+// extender type name.
 func getExtenderType(n string) ExtenderType {
 	result, ok := stringToExtenderTypeMap[strings.ToLower(n)]
 	if ok {
@@ -145,7 +145,7 @@ func parsePayload(payload []byte) (*yaml.RNode, error) {
 	return nodes[0], nil
 }
 
-// SetPayload parses payload an sets the extender internal state
+// SetPayload parses payload an sets the extender internal state.
 func (e *yamlExtender) SetPayload(payload []byte) error {
 	var err error
 	e.node, err = parsePayload(payload)
@@ -155,19 +155,19 @@ func (e *yamlExtender) SetPayload(payload []byte) error {
 	return nil
 }
 
-// serializeNode serialize one node into YAML
+// serializeNode serialize one node into YAML.
 func serializeNode(node *yaml.RNode) ([]byte, error) {
 	var b bytes.Buffer
 	err := (&kio.ByteWriter{Writer: &b}).Write([]*yaml.RNode{node})
 	return b.Bytes(), err
 }
 
-// GetPayload returns the current payload in the proper encoding
+// GetPayload returns the current payload in the proper encoding.
 func (e *yamlExtender) GetPayload() ([]byte, error) {
 	return serializeNode(e.node)
 }
 
-// unwrapSeqNode unwraps node if it is a Wrapped Bare Seq Node
+// unwrapSeqNode unwraps node if it is a Wrapped Bare Seq Node.
 func unwrapSeqNode(node *yaml.RNode) *yaml.RNode {
 	seqNode, err := node.Pipe(yaml.Lookup(yaml.BareSeqNodeWrappingKey))
 	if err == nil && !seqNode.IsNilOrEmpty() {
@@ -188,7 +188,7 @@ func Lookup(node *yaml.RNode, path []string, kind yaml.Kind) (*yaml.RNode, error
 	return node, nil
 }
 
-// nodeSerializer is a RNode serializer function
+// nodeSerializer is a RNode serializer function.
 type nodeSerializer func(*yaml.RNode) ([]byte, error)
 
 // getNodePath returns the value of the node at path serialized with serializer.
@@ -205,12 +205,12 @@ func getNodePath(node *yaml.RNode, path []string, serializer nodeSerializer) ([]
 	return serializer(node)
 }
 
-// Get returns the encoded payload at the specified path
+// Get returns the encoded payload at the specified path.
 func (e *yamlExtender) Get(path []string) ([]byte, error) {
 	return getNodePath(e.node, path, serializeNode)
 }
 
-// setValue sets value at path on node
+// setValue sets value at path on node.
 func setValue(node *yaml.RNode, path []string, value any) error {
 	kind := yaml.ScalarNode
 	if v, ok := value.(*yaml.Node); ok {
@@ -222,13 +222,14 @@ func setValue(node *yaml.RNode, path []string, value any) error {
 		return fmt.Errorf("error fetching elements in replacement target: %w", err)
 	}
 
-	switch target.YNode().Kind {
-	case yaml.ScalarNode:
-		target.YNode().Value = string(getByteValue(value))
+	targetKind := target.YNode().Kind
+	switch targetKind {
 	case kind:
 		if v, isNode := value.(*yaml.Node); isNode {
 			target.SetYNode(v)
 		}
+	case yaml.ScalarNode:
+		target.YNode().Value = string(getByteValue(value))
 	case yaml.DocumentNode, yaml.SequenceNode, yaml.MappingNode, yaml.AliasNode:
 	default:
 		return fmt.Errorf("setting non yaml object in place of object of type %s at path %s",
@@ -269,7 +270,7 @@ func (e *base64Extender) SetPayload(payload []byte) error {
 	return nil
 }
 
-// GetPayload returns the current payload as base64
+// GetPayload returns the current payload as base64.
 func (e *base64Extender) GetPayload() ([]byte, error) {
 	return []byte(base64.StdEncoding.EncodeToString(e.decoded)), nil
 }
@@ -284,7 +285,7 @@ func (e *base64Extender) Get(path []string) ([]byte, error) {
 	return e.decoded, nil
 }
 
-// Set stores value in the current payload. path must be empty.
+// Set stores value in the current payload. Path must be empty.
 func (e *base64Extender) Set(path []string, value any) error {
 	if len(path) > 0 {
 		return fmt.Errorf("path is invalid for base64: %s", strings.Join(path, "."))
@@ -312,18 +313,18 @@ func NewBase64Extender() Extender {
 
 // regexExtender allows text replacement in pure text properties.
 //
-// see [NewRegexExtender]
+// See [NewRegexExtender].
 type regexExtender struct {
 	text []byte
 }
 
-// SetPayload store the plain payload internally
+// SetPayload store the plain payload internally.
 func (e *regexExtender) SetPayload(payload []byte) error {
 	e.text = payload
 	return nil
 }
 
-// GetPayload returns the text payload
+// GetPayload returns the text payload.
 func (e *regexExtender) GetPayload() ([]byte, error) {
 	return e.text, nil
 }
@@ -469,7 +470,7 @@ func getJSONPayload(node *yaml.RNode) ([]byte, error) {
 	return b.Bytes(), nil
 }
 
-// GetPayload returns the payload as a serialized JSON object
+// GetPayload returns the payload as a serialized JSON object.
 func (e *jsonExtender) GetPayload() ([]byte, error) {
 	return getJSONPayload(unwrapSeqNode(e.node))
 }
@@ -479,7 +480,7 @@ func (e *jsonExtender) Get(path []string) ([]byte, error) {
 	return getNodePath(e.node, path, getJSONPayload)
 }
 
-// Set modifies the inner JSON at path with value
+// Set modifies the inner JSON at path with value.
 func (e *jsonExtender) Set(path []string, value any) error {
 	return setValue(e.node, path, value)
 }
@@ -650,7 +651,7 @@ var ExtenderFactories = map[ExtenderType]func() Extender{
 }
 
 // Extender returns a newly created [Extender] for the appropriate encoding.
-// uses [ExtenderFactories].
+// Uses [ExtenderFactories].
 func (path *ExtendedSegment) Extender(payload []byte) (Extender, error) {
 	bpt := getExtenderType(path.Encoding)
 	if f, ok := ExtenderFactories[bpt]; ok {
@@ -669,7 +670,7 @@ func (path *ExtendedSegment) Extender(payload []byte) (Extender, error) {
 ///////////////
 
 // splitExtendedPath fills extensions with the ExtendedSegments found in path
-// and returns the path prefix. This method is used by [NewExtendedPath]
+// and returns the path prefix. This method is used by [NewExtendedPath].
 func splitExtendedPath(path []string, extensions *[]*ExtendedSegment) ([]string, error) {
 	if len(path) == 0 {
 		return nil, nil
@@ -783,7 +784,7 @@ func (ep *ExtendedPath) applyIndex(index int, input []byte, value *yaml.Node) ([
 	return extender.GetPayload()
 }
 
-// Apply applies value to target. target is the KRM resource specified by
+// Apply applies value to target. Target is the KRM resource specified by
 // ResourcePrefix.
 //
 // Apply creates the appropriate [Extender] for each extended segment and

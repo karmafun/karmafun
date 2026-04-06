@@ -80,6 +80,7 @@ repos:
     rev: v2.7.2
     hooks:
       - id: golangci-lint-config-verify
+      # Need to properly define the CGO_ENABLED and CC env vars (see tasks.json)
       - id: golangci-lint
       - id: golangci-lint-fmt
 

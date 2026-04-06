@@ -5,7 +5,7 @@ package utils
 import "sigs.k8s.io/kustomize/api/konfig"
 
 const (
-	// build annotations
+	// Build annotations.
 	BuildAnnotationPreviousKinds      = konfig.ConfigAnnoDomain + "/previousKinds"
 	BuildAnnotationPreviousNames      = konfig.ConfigAnnoDomain + "/previousNames"
 	BuildAnnotationPrefixes           = konfig.ConfigAnnoDomain + "/prefixes"
@@ -16,34 +16,34 @@ const (
 	BuildAnnotationsGenAddHashSuffix  = konfig.ConfigAnnoDomain + "/needsHashSuffix"
 
 	// ConfigurationAnnotationDomain is the domain of function configuration
-	// annotations
+	// annotations.
 	ConfigurationAnnotationDomain = "config.kubernetes.io"
 
 	LocalConfigurationAnnotationDomain = "config.karmafun.dev"
 
-	// Function configuration annotation
+	// Function configuration annotation.
 	FunctionAnnotationFunction = ConfigurationAnnotationDomain + "/function"
 
-	// true when the resource is part of the local configuration
+	// True when the resource is part of the local configuration.
 	FunctionAnnotationLocalConfig = LocalConfigurationAnnotationDomain + "/local-config"
 
 	// Setting to true means we want this function configuration to be injected as a
-	// local configuration resource (local-config)
+	// local configuration resource (local-config).
 	FunctionAnnotationInjectLocal = LocalConfigurationAnnotationDomain + "/inject-local"
 
-	// if set, Remove any transformation leftover annotations
+	// If set, Remove any transformation leftover annotations.
 	FunctionAnnotationCleanup = LocalConfigurationAnnotationDomain + "/cleanup"
 
-	// if set, the transformation will remove all the resources marked as local-config
+	// If set, the transformation will remove all the resources marked as local-config.
 	FunctionAnnotationPruneLocal = LocalConfigurationAnnotationDomain + "/prune-local"
-	// Saving path for injected resource
+	// Saving path for injected resource.
 	FunctionAnnotationPath = LocalConfigurationAnnotationDomain + "/path"
-	// Saving index for injected resource
+	// Saving index for injected resource.
 	FunctionAnnotationIndex = LocalConfigurationAnnotationDomain + "/index"
 
-	// Annotation for setting kind of in place generated resources
+	// Annotation for setting kind of in place generated resources.
 	FunctionAnnotationKind = LocalConfigurationAnnotationDomain + "/kind"
 
-	// Annotation for setting api version of in place generated resources
+	// Annotation for setting api version of in place generated resources.
 	FunctionAnnotationApiVersion = LocalConfigurationAnnotationDomain + "/apiVersion"
 )

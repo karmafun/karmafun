@@ -445,7 +445,7 @@ func loadSource(h *resmap.PluginHelpers, path string) (resmap.ResMap, error) {
 			return nil, fmt.Errorf("while reading source %s: %w", path, err)
 		}
 
-		source, err = runKustomizations(filesys.MakeFsOnDisk(), path)
+		source, err = RunKustomizations(filesys.MakeFsOnDisk(), path)
 		if err != nil {
 			return nil, fmt.Errorf("while getting source for replacements %s: %w", path, err)
 		}

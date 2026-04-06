@@ -1,13 +1,19 @@
 package plugins
 
-// cSpell: words filesys restrictor pldr gosec govet
+// cSpell: words filesys restrictor pldr gosec govet konfig
 import (
 	"fmt"
+	"log/slog"
+	"maps"
+	"os"
+	"path/filepath"
+	"strings"
 	"unsafe"
 
 	//nolint:staticcheck // mimics the kustomize pattern used for plugins.
 	"sigs.k8s.io/kustomize/api/builtins"
 	"sigs.k8s.io/kustomize/api/ifc"
+	"sigs.k8s.io/kustomize/api/konfig"
 	fLdr "sigs.k8s.io/kustomize/api/pkg/loader"
 	"sigs.k8s.io/kustomize/api/provider"
 	"sigs.k8s.io/kustomize/api/resmap"
@@ -17,6 +23,7 @@ import (
 	"sigs.k8s.io/kustomize/kyaml/yaml"
 
 	"github.com/karmafun/karmafun/pkg/extras"
+	"github.com/karmafun/karmafun/pkg/utils"
 )
 
 type FunctionConfigConfigurable interface {
@@ -189,4 +196,79 @@ func NewPluginHelpers() (*resmap.PluginHelpers, error) {
 	config.HelmConfig.Enabled = true
 	config.HelmConfig.Command = "helm"
 	return resmap.NewPluginHelpers(ldr, depProvider.GetFieldValidator(), resmapFactory, config), nil
+}
+
+func GetPluginPath() (string, error) {
+	baseDir, ok := os.LookupEnv(konfig.KustomizePluginHomeEnv)
+	if !ok {
+		var err error
+		baseDir, err = os.UserConfigDir()
+		if err != nil {
+			return "", fmt.Errorf("while getting user config dir: %w", err)
+		}
+		baseDir = filepath.Join(baseDir, konfig.ProgramName, konfig.RelPluginHome)
+	}
+
+	baseDir = filepath.Join(baseDir, "karmafun.dev", "v1alpha1")
+	return baseDir, nil
+}
+
+func CreatePluginDirectoryHierarchy(fs filesys.FileSystem) error {
+	execPath, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("while getting executable path: %w", err)
+	}
+	baseDir, err := GetPluginPath()
+	if err != nil {
+		return fmt.Errorf("while getting plugin path: %w", err)
+	}
+	slog.Debug("Creating symlinks for plugins...", "path", baseDir)
+	err = fs.RemoveAll(baseDir)
+	if err != nil {
+		return fmt.Errorf("while removing existing plugin directory hierarchy at %s: %w", baseDir, err)
+	}
+	err = fs.MkdirAll(baseDir)
+	if err != nil {
+		return fmt.Errorf("while creating plugin directory hierarchy as %s: %w", baseDir, err)
+	}
+
+	execConfirmedDir := filesys.ConfirmedDir(filepath.Dir(execPath))
+
+	// Loop through all the builtin plugins and create symlinks to the executable in the plugin directory hierarchy.
+	for pluginType := range utils.Concat(maps.Keys(TransformerFactories), maps.Keys(GeneratorFactories)) {
+		kind := pluginType.String()
+		lowerKind := strings.ToLower(kind)
+		pluginPath := filepath.Join(baseDir, lowerKind, kind)
+		err = fs.MkdirAll(filepath.Dir(pluginPath))
+		if err != nil {
+			return fmt.Errorf("while creating plugin directory for %s: %w", kind, err)
+		}
+		// Create a symlink to the executable for the plugin if it doesn't already exist.
+		if fs.Exists(pluginPath) {
+			continue
+		}
+		if err := os.Symlink(execConfirmedDir.Join(filepath.Base(execPath)), pluginPath); err != nil {
+			return fmt.Errorf("while creating symlink for plugin %s at %s: %w", kind, pluginPath, err)
+		}
+	}
+
+	return nil
+}
+
+func RemovePluginDirectoryHierarchy(fs filesys.FileSystem) error {
+	baseDir, err := GetPluginPath()
+	if err != nil {
+		return fmt.Errorf("while getting plugin path: %w", err)
+	}
+	// remove version
+	baseDir = filepath.Dir(baseDir)
+	if fs.Exists(baseDir) {
+		slog.Debug("Removing plugin directory hierarchy at path", "path", baseDir)
+		if err := fs.RemoveAll(baseDir); err != nil {
+			return fmt.Errorf("while removing plugin directory hierarchy at %s: %w", baseDir, err)
+		}
+	} else {
+		slog.Debug("Plugin directory hierarchy does not exist, skipping removal", "path", baseDir)
+	}
+	return nil
 }

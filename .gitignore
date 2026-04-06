@@ -19,3 +19,5 @@ karmafun
 dist/
 *.rsa
 *.rsa.pub
+
+.decrypted~*
