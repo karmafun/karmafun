@@ -238,7 +238,6 @@ require (
 	github.com/go-errors/errors v1.5.1 // indirect
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
 	github.com/go-git/go-billy/v5 v5.8.0 // indirect
-	github.com/go-ini/ini v1.67.0
 	github.com/go-openapi/jsonpointer v0.21.0 // indirect
 	github.com/go-openapi/jsonreference v0.21.0 // indirect
 	github.com/go-openapi/swag v0.23.0 // indirect
@@ -304,3 +303,6 @@ require (
 // sops has this dependency only for testing.
 // Pin to the older version to avoid compile errors.
 replace github.com/docker/cli => github.com/docker/cli v28.3.2+incompatible
+
+// see https://github.com/kcl-lang/lib/issues/287
+replace kcl-lang.io/lib v0.12.3 => github.com/karmafun/lib v0.12.4
