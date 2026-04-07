@@ -222,19 +222,23 @@ func setValue(node *yaml.RNode, path []string, value any) error {
 		return fmt.Errorf("error fetching elements in replacement target: %w", err)
 	}
 
-	targetKind := target.YNode().Kind
-	switch targetKind {
-	case kind:
-		if v, isNode := value.(*yaml.Node); isNode {
-			target.SetYNode(v)
-		}
-	case yaml.ScalarNode:
+	// for scalar nodes, just set the string value.
+	if target.YNode().Kind == yaml.ScalarNode {
 		target.YNode().Value = string(getByteValue(value))
-	case yaml.DocumentNode, yaml.SequenceNode, yaml.MappingNode, yaml.AliasNode:
-	default:
-		return fmt.Errorf("setting non yaml object in place of object of type %s at path %s",
-			target.YNode().Tag, strings.Join(path, "."))
+		return nil
 	}
+
+	// If source and dest are not the same kind (sequence vs mapping for instance), replacement fails.
+	if target.YNode().Kind != kind {
+		return fmt.Errorf(
+			"setting non yaml object in place of object of type %s at path %s",
+			target.YNode().Tag,
+			strings.Join(path, "."),
+		)
+	}
+
+	v, _ := value.(*yaml.Node) //nolint:errcheck // already checked kind, so this should not fail.
+	target.SetYNode(v)
 	return nil
 }
 
