@@ -1,6 +1,6 @@
 #!/bin/bash
 # cSpell: words toplevel appstage
-set -e pipefail
+set -eo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
