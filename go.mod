@@ -11,6 +11,7 @@ require (
 	github.com/spf13/viper v1.13.0
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/tools v0.43.0
+	gopkg.in/ini.v1 v1.67.1
 	k8s.io/apimachinery v0.35.2
 	kcl-lang.io/krm-kcl v0.12.4
 	sigs.k8s.io/kustomize/api v0.21.1
@@ -291,7 +292,6 @@ require (
 	google.golang.org/genproto v0.0.0-20260128011058-8636f8732409 // indirect
 	google.golang.org/grpc v1.79.1 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
-	gopkg.in/ini.v1 v1.67.1 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20250910181357-589584f1c912 // indirect
