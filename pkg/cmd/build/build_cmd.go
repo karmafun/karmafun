@@ -154,7 +154,7 @@ func SplitResMapToDir(fs filesys.FileSystem, resources resmap.ResMap, destDir st
 		if err := fs.WriteFile(path, yamlData); err != nil {
 			return fmt.Errorf("failed to write file %s: %w", path, err)
 		}
-		fmt.Fprintf(os.Stderr, "Created: %s\n", path)
+		slog.Info("Resource file created", "path", path, "kind", kind, "name", name)
 	}
 	return nil
 }
