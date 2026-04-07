@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"sigs.k8s.io/kustomize/api/resmap"
 	"sigs.k8s.io/kustomize/api/resource"
 	"sigs.k8s.io/kustomize/kyaml/fn/framework"
@@ -11,6 +13,7 @@ import (
 	"sigs.k8s.io/kustomize/kyaml/resid"
 	"sigs.k8s.io/kustomize/kyaml/yaml"
 
+	"github.com/karmafun/karmafun/pkg/cmd/build"
 	"github.com/karmafun/karmafun/pkg/plugins"
 	"github.com/karmafun/karmafun/pkg/utils"
 )
@@ -131,11 +134,32 @@ func (p *processor) Process(rl *framework.ResourceList) error {
 }
 
 func main() {
-	cmd := command.Build(&processor{}, command.StandaloneDisabled, false)
-	command.AddGenerateDockerfile(cmd)
+	logOptions := build.NewLogOptions()
+	cmd := command.Build(&processor{}, command.StandaloneEnabled, false)
+	cmd.Use = "karmafun"
 	cmd.Version = KarmafunVersion
+	command.AddGenerateDockerfile(cmd)
+	cmd.AddCommand(build.NewBuildCommand(nil, logOptions))
+	logOptions.AddFlags(cmd.PersistentFlags())
+	utils.AddConfigFlag(cmd)
+	var calledAs string
+	cmd.PersistentPreRunE = func(cmd *cobra.Command, _ []string) error {
+		calledAs = cmd.CalledAs()
+		rootCmd := cmd.Root()
+		err := utils.InitializeConfiguration(rootCmd, viper.GetViper())
+		if err != nil {
+			return fmt.Errorf("initializing configuration: %w", err)
+		}
+		logOptions.InitLogger()
+		return nil
+	}
+
+	utils.BindFlagsToViper(cmd, viper.GetViper())
 
 	if err := cmd.Execute(); err != nil {
+		if calledAs == "build" {
+			cobra.CheckErr(err)
+		}
 		os.Exit(1)
 	}
 }

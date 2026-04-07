@@ -24,6 +24,7 @@
     "finalizers",
     "getsops",
     "gochecknoinits",
+    "gojq",
     "golangci",
     "goreleaser",
     "incpatch",
