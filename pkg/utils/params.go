@@ -1,0 +1,329 @@
+/*
+Copyright © 2025 Antoine Martin <antoine@openance.com>
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+// cSpell: words  wrapcheck pflag
+package utils
+
+import (
+	"fmt"
+	"log/slog"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
+	"github.com/spf13/viper"
+)
+
+const (
+	ConfigSectionAnnotation = "config-section"
+	SkipViperBindAnnotation = "skip-viper-bind"
+	ConfigFlag              = "config"
+)
+
+// GetBaseDirectory returns the first parent directory that contains a .git directory.
+func GetBaseDirectory() (string, error) {
+	dir, err := os.Getwd()
+	if err != nil {
+		return "", fmt.Errorf("while getting base directory: %w", err)
+	}
+	for dir != "/" {
+		if _, err := os.Stat(fmt.Sprintf("%s/.git", dir)); err == nil {
+			return dir, nil
+		}
+		dir = filepath.Dir(dir)
+	}
+	return ".", nil
+}
+
+// SetCommandConfigSection sets the annotation for the command to indicate that it has a configuration section.
+func SetCommandConfigSection(cmd *cobra.Command, section string) {
+	if cmd.Annotations == nil {
+		cmd.Annotations = map[string]string{}
+	}
+
+	cmd.Annotations[ConfigSectionAnnotation] = section
+}
+
+// CommandHasConfigSection checks if the command has a configuration section.
+func CommandHasConfigSection(cmd *cobra.Command) bool {
+	if cmd.Annotations == nil {
+		return false
+	}
+	_, ok := cmd.Annotations[ConfigSectionAnnotation]
+	return ok
+}
+
+// CommandConfigSection returns the configuration section for the command.
+func CommandConfigSection(cmd *cobra.Command) string {
+	if cmd.Annotations == nil {
+		return ""
+	}
+	val, ok := cmd.Annotations[ConfigSectionAnnotation]
+	if !ok {
+		return ""
+	}
+	return val
+}
+
+// Add the viper binding skip annotation to the command.
+func SetSkipViperBindForCommand(cmd *cobra.Command, skip bool) {
+	if cmd.Annotations == nil {
+		cmd.Annotations = map[string]string{}
+	}
+
+	if skip {
+		slog.Debug("setting skip viper bind annotation for command",
+			"command", cmd.Name(),
+		)
+		cmd.Annotations[SkipViperBindAnnotation] = "true"
+	} else {
+		slog.Debug("removing skip viper bind annotation for command",
+			"command", cmd.Name(),
+		)
+		delete(cmd.Annotations, SkipViperBindAnnotation)
+	}
+}
+
+// Add the viper binding skip annotation to the flag.
+func SetSkipViperBindForFlag(flag *pflag.Flag, skip bool) {
+	if flag.Annotations == nil {
+		flag.Annotations = map[string][]string{}
+	}
+
+	if skip {
+		slog.Debug("setting skip viper bind annotation for flag",
+			"flag", flag.Name,
+		)
+		flag.Annotations[SkipViperBindAnnotation] = []string{fmt.Sprintf("%t", skip)}
+	} else {
+		slog.Debug("removing skip viper bind annotation for flag",
+			"flag", flag.Name,
+		)
+		delete(flag.Annotations, SkipViperBindAnnotation)
+	}
+}
+
+// CmdShouldSkipViperBind checks if the command has a skip viper bind annotation.
+func CmdShouldSkipViperBind(cmd *cobra.Command) bool {
+	if cmd.Annotations == nil {
+		return false
+	}
+	val, ok := cmd.Annotations[SkipViperBindAnnotation]
+	if !ok {
+		return false
+	}
+	return val == "true"
+}
+
+// SkipViperBind checks if the flag has a skip viper bind annotation.
+func FlagShouldSkipViperBind(flag *pflag.Flag) bool {
+	if flag.Annotations == nil {
+		return false
+	}
+	val, ok := flag.Annotations[SkipViperBindAnnotation]
+	if !ok {
+		return false
+	}
+	return val[0] == "true"
+}
+
+func toStringSlice(val any) ([]string, error) {
+	switch v := val.(type) {
+	case []string:
+		return v, nil
+	// For the case where the value is defined in a environment variable.
+	// see https://github.com/spf13/viper/issues/380
+	case string:
+		return strings.Split(v, ","), nil
+	case []any:
+		values := make([]string, len(v))
+		for i, item := range v {
+			values[i] = fmt.Sprintf("%v", item)
+		}
+		return values, nil
+	default:
+		return nil, fmt.Errorf("expected slice value, got %T", val)
+	}
+}
+
+// BindFlagValue applies the viper config value to the flag when the flag is not set and viper has a value.
+func BindFlagValue(f *pflag.Flag, v *viper.Viper, viperName string) error {
+	// Apply the viper config value to the flag when the flag is not set and viper has a value
+	if f.Changed || !v.IsSet(viperName) {
+		slog.Debug("skipping applying viper config to flag because flag is already set or viper key is not set",
+			"option", f.Name,
+			"viper_key", viperName,
+		)
+		return nil
+	}
+	val := v.Get(viperName)
+
+	if vi, ok := f.Value.(pflag.SliceValue); ok {
+		stringValues, err := toStringSlice(val)
+		if err != nil {
+			slog.Error("error converting options",
+				"option", f.Name,
+				"viper_key", viperName,
+				"value", val,
+				"error", err,
+			)
+			return fmt.Errorf("while getting viper array value for %s: %w", viperName, err)
+		}
+		if err := vi.Replace(stringValues); err != nil {
+			slog.Error("error replacing options",
+				"option", f.Name,
+				"viper_key", viperName,
+				"value", val,
+				"error", err,
+			)
+			return fmt.Errorf(
+				"while replacing viper array value for %s from viper key %s with value %v: %w",
+				f.Name,
+				viperName,
+				val,
+				err,
+			)
+		}
+	} else {
+		if err := f.Value.Set(fmt.Sprintf("%v", val)); err != nil {
+			slog.Error("error replacing options",
+				"option", f.Name,
+				"viper_key", viperName,
+				"value", val,
+				"error", err,
+			)
+			return fmt.Errorf(
+				"while setting viper value for %s from viper key %s with value %v: %w",
+				f.Name,
+				viperName,
+				val,
+				err,
+			)
+		}
+	}
+	return nil
+}
+
+func BindFlag(f *pflag.Flag, v *viper.Viper, viperName string) error {
+	return v.BindPFlag(viperName, f) //nolint:wrapcheck // no added value from wrapping error
+}
+
+// BindFlags binds each cobra flag to its associated viper configuration (config file and environment variable).
+func BindFlags(
+	cmd *cobra.Command,
+	v *viper.Viper,
+	prefix string,
+	binder func(f *pflag.Flag, v *viper.Viper, viperName string) error,
+) {
+	if CmdShouldSkipViperBind(cmd) {
+		return
+	}
+	if CommandHasConfigSection(cmd) {
+		prefix = CommandConfigSection(cmd) + "."
+	}
+
+	persistent := cmd.PersistentFlags()
+	persistent.VisitAll(func(f *pflag.Flag) {
+		if !FlagShouldSkipViperBind(f) {
+			// Environment variables can't have dashes in them, so bind them to their equivalent
+			// keys with underscores, e.g. --favorite-color to STING_FAVORITE_COLOR
+			viperName := prefix + strings.ReplaceAll(f.Name, "-", "_")
+			if err := binder(f, v, viperName); err != nil {
+				slog.Error("error binding flag to viper",
+					"option", f.Name,
+					"viper_key", viperName,
+					"error", err,
+				)
+			}
+		}
+	})
+
+	flags := cmd.Flags()
+	// Same with the command flags
+	flags.VisitAll(func(f *pflag.Flag) {
+		if !FlagShouldSkipViperBind(f) {
+			viperName := prefix + strings.ReplaceAll(f.Name, "-", "_")
+			if err := binder(f, v, viperName); err != nil {
+				slog.Error("error binding flag to viper",
+					"option", f.Name,
+					"viper_key", viperName,
+					"error", err,
+				)
+			}
+		}
+	})
+	// visit the subcommands
+	for _, c := range cmd.Commands() {
+		BindFlags(c, v, prefix, binder)
+	}
+}
+
+// BindFlagsToViper binds each cobra flag to its associated viper configuration (config file and environment variable).
+// Call this in the init() function of the command after defining the flags.
+func BindFlagsToViper(cmd *cobra.Command, v *viper.Viper) {
+	BindFlags(cmd, v, "", BindFlag)
+}
+
+// ApplyViperConfigToFlags applies the viper configuration to the flags of the command when the flags are not set.
+// This allows the configuration file and environment variables to override the default flag values,
+// but still allow the user to override them with command line flags.
+// Call this in the PersistentPreRunE function of the root command.
+func ApplyViperConfigToFlags(cmd *cobra.Command, v *viper.Viper) {
+	BindFlags(cmd, v, "", BindFlagValue)
+}
+
+// InitializeConfiguration reads in config file and ENV variables if set.
+func InitializeConfiguration(rootCmd *cobra.Command, v *viper.Viper) error {
+	commandName := rootCmd.Name()
+	envPrefix := strings.ToUpper(commandName)
+	configFileFlag := rootCmd.PersistentFlags().Lookup(ConfigFlag)
+
+	if configFileFlag != nil && configFileFlag.Value.String() != "" {
+		// Use config file from the flag.
+		v.SetConfigFile(configFileFlag.Value.String())
+	} else {
+		// Search config in home directory with name ".<commandName>" (without extension).
+		v.SetConfigName("." + commandName)
+		configDirectory, err := os.UserConfigDir()
+		if err != nil {
+			return fmt.Errorf("while getting configuration directory: %w", err)
+		}
+		v.AddConfigPath(configDirectory)
+		if baseDir, err := GetBaseDirectory(); err == nil {
+			v.AddConfigPath(baseDir) // adding current directory as first search path
+		} else {
+			slog.Warn("could not determine base directory for config file search, skipping", "error", err)
+		}
+	}
+
+	v.AutomaticEnv() // read in environment variables that match
+	v.SetEnvPrefix(envPrefix)
+	v.SetEnvKeyReplacer(strings.NewReplacer("-", "_", ".", "_"))
+
+	// If a config file is found, read it in.
+	if err := v.ReadInConfig(); err != nil {
+		slog.Debug("could not read config file, skipping", "error", err)
+	}
+	ApplyViperConfigToFlags(rootCmd, v)
+	return nil
+}
+
+func AddConfigFlag(cmd *cobra.Command) {
+	supportedExts := strings.Join(viper.SupportedExts, "|")
+	cmd.PersistentFlags().
+		StringP(ConfigFlag, "c", "", fmt.Sprintf("config file (default is $HOME/.%s.<%s>)", cmd.Name(), supportedExts))
+}

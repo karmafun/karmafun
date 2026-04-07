@@ -1,0 +1,28 @@
+# cSpell: disable
+apiVersion: config.karmafun.dev/v1alpha1
+kind: PlatformValues
+metadata:
+  name: karmafun-values
+data:
+  domain_suffix: karmafun.dev
+  project:
+    name: karmafun
+    slug: karmafun
+    email: antoine@mrtn.fr
+    github:
+      organization: karmafun-dev
+      repo: karmafun
+      team: admin
+  argocd:
+    domain_prefix: argocd-e2e
+    repo_server:
+      image_name: ghcr.io/kaweezle/argocd-helmfile
+      image_tag: v3.3.2-1.3.2-1
+    base_path: deploy/k8s/argocd/e2e
+    target_revision: deploy/ama/local
+    bootstrap_application: appstage-00-bootstrap
+  cloudflare:
+    account_id: a54f6b2557d54a9bff5eef36482b7fe6
+  iac:
+    state_bucket: kwzltfstate
+    storage_provider: cloudflare

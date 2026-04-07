@@ -303,7 +303,7 @@ func TestJsonExtender(t *testing.T) {
 	prefix, err := splitExtendedPath(path, &extensions)
 	req.NoError(err)
 	req.Empty(prefix, "There should be no prefix")
-	req.Len(extensions, 1, "There should be 2 extensions")
+	req.Len(extensions, 1, "There should be 1 extension")
 	req.Equal("json", extensions[0].Encoding, "The first extension should be json")
 
 	jsonXP := extensions[0]
