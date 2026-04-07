@@ -35,6 +35,13 @@ transformation in your kustomize projects.
             </li>
         </ul>
     </li>
+    <li><a href="#karmafun-build">karmafun build</a>
+        <ul>
+            <li><a href="#values-and-secrets">Values and secrets</a></li>
+            <li><a href="#go-template-support">Go template support</a></li>
+            <li><a href="#sample-kustomization">Sample kustomization</a></li>
+        </ul>
+    </li>
     <li><a href="#installation">Installation</a></li>
     <li><a href="#argo-cd-integration">Argo CD integration</a></li>
     <li><a href="#related-projects">Related projects</a></li>
@@ -1259,6 +1266,132 @@ Thanks to this feature, you can keep some values in clear text inside your
 properties files and encode them on kustomization. Be aware that the `bcrypt`
 encoding will generate a new value for each kustomization.
 
+## karmafun build
+
+`karmafun build` is a `kustomize build` replacement that extends the standard
+build pipeline with two additional capabilities:
+
+- **Values and secrets injection** — a `values.yaml` file and an optional SOPS‑encrypted
+  `secrets.sops.yaml` file are loaded, merged, and made available inside
+  kustomization files as Go template variables.
+- **Go template rendering** — any file in the kustomization directory whose name
+  ends with `.tmpl` or `.gotmpl` is rendered as a [Go text/template] before
+  being passed to kustomize. All [Sprig] functions are available.
+
+All karmafun plugins (and any standard kustomize plugin) can be used in the
+kustomization, so you can combine template-driven resource generation with
+transformations such as `ReplacementTransformer`, `GitConfigMapGenerator`, or
+`SopsGenerator`.
+
+### Usage
+
+```console
+karmafun build [flags] <kustomization directory>
+```
+
+| Flag | Default | Description |
+|---|---|---|
+| `--values-file` | `values.yaml` | YAML file containing plain-text platform values |
+| `--secrets-file` | `secrets.sops.yaml` | SOPS‑encrypted YAML file containing secret values |
+| `--output-directory` / `-o` | _(stdout)_ | Write each resource to its own `Kind-name.yaml` file in this directory |
+| `--log-level` | `info` | Log level (`debug`, `info`, `warn`, `error`) |
+| `--log-json` | `false` | Emit logs in JSON format |
+
+When no `--output-directory` is given, the built YAML is printed to stdout,
+just like `kustomize build`.
+
+### Values and secrets
+
+Both the values file and the secrets file use the `PlatformValues` resource
+format:
+
+```yaml
+# values.yaml
+apiVersion: config.karmafun.dev/v1alpha1
+kind: PlatformValues
+metadata:
+  name: my-values
+data:
+  domain_suffix: example.com
+  project:
+    name: my-project
+  argocd:
+    target_revision: main
+```
+
+The secrets file has exactly the same structure, but it must be encrypted with
+[sops]. The two files are **deep-merged** at build time, with secrets values
+taking precedence over plain values.
+
+To create an encrypted secrets file from an unencrypted one:
+
+```console
+sops -e secrets.dec.sops.yaml > secrets.sops.yaml
+```
+
+If either file is absent, it is silently ignored and treated as empty.
+
+### Go template support
+
+Any kustomization resource file ending with `.tmpl` or `.gotmpl` is
+transparently rendered as a Go template before kustomize processes it. The
+merged values are accessible under the `.Values` variable:
+
+| Template expression | Description |
+|---|---|
+| `{{ .Values.data.key }}` | Top‑level value key |
+| `{{ .Values.data.nested.key }}` | Nested value key |
+
+All [Sprig] helper functions (`upper`, `trim`, `toJson`, …) are available in
+templates.
+
+Example template file `application.yaml.gotmpl`:
+
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: my-app
+  namespace: argocd
+spec:
+  source:
+    repoURL: git@github.com:{{ .Values.data.project.github.organization }}/{{ .Values.data.project.github.repo }}.git
+    targetRevision: {{ .Values.data.argocd.target_revision }}
+    path: deploy/k8s/{{ .Values.data.argocd.base_path }}
+```
+
+The rendered output is what kustomize sees, so the final resource contains the
+concrete values from your `values.yaml` / `secrets.sops.yaml`.
+
+### Sample kustomization
+
+The [`samples/kustomization`] directory contains a self-contained example that
+demonstrates the full workflow:
+
+```
+samples/kustomization/
+├── appstage-00-bootstrap/
+│   ├── application.yaml.gotmpl   # Go template — uses .Values.data.*
+│   └── kustomization.yaml        # Kustomization that references the template
+│                                 # and the secrets generator
+├── values.yaml                   # Plain-text PlatformValues resource
+├── secrets.dec.sops.yaml         # Unencrypted secrets (for reference only)
+├── secrets.sops.yaml             # SOPS-encrypted secrets
+└── test_kustomization.sh         # Script that runs karmafun build
+```
+
+To run the sample (after [installing karmafun](#installation)):
+
+```console
+# Extract the sample age key so sops can decrypt secrets.sops.yaml
+gojq -r --yaml-input '.data.sops["age_key.txt"]' \
+  ./samples/kustomization/secrets.dec.sops.yaml \
+  >> ~/.config/sops/age/keys.txt
+
+# Build the sample kustomization
+karmafun build samples/kustomization/appstage-00-bootstrap
+```
+
 ## Installation
 
 With each [Release](https://github.com/karmafun/karmafun/releases), we provide
@@ -1356,4 +1489,7 @@ basic tests with kpt.
   https://kubectl.docs.kubernetes.io/references/kustomize/builtins/#_configmapgenerator_
 [replacements kustomize documentation]: https://kubectl.docs.kubernetes.io/references/kustomize/kustomization/replacements/
 [sops]: https://github.com/mozilla/sops
+[Go text/template]: https://pkg.go.dev/text/template
+[Sprig]: https://masterminds.github.io/sprig/
+[`samples/kustomization`]: samples/kustomization
 <!-- prettier-ignore-end -->
