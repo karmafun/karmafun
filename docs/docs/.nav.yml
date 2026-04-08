@@ -1,25 +1,25 @@
-# Navigation
-# TODO: Implement the following kind of navigation structure
-# nav:
-#   - Introduction:
-#       - Home: index.md
-#       - Quick Start: quick_start.md
-#       - Installation: installation.md
-#       - Features: features.md
-#   - Usage:
-#       - Basic Usage: usage/basic_usage.md
-#       - Advanced Usage: usage/advanced_usage.md
-#   - Configuration:
-#       - Configuration File: configuration/configuration_file.md
-#       - Settings Reference: configuration/settings_reference.md
-#   - Development:
-#       - Contributing: development/contributing.md
-#       - Code Structure: development/code_structure.md
-#   - FAQ: faq.md
-#   - Changelog: changelog.md
 nav:
-  - Introduction:
-      - Welcome: index.md
+  - Home: index.md
+  - Installation: installation.md
+  - Usage:
+      - Annotations: usage/annotations.md
+      - Resource management: usage/resource-management.md
+  - Plugins:
+      - Overview: plugins/index.md
+      - Builtin plugins: plugins/builtin.md
+      - Generators:
+          - Overview: plugins/generators/index.md
+          - GitConfigMapGenerator: plugins/generators/git-configmap.md
+          - KustomizationGenerator: plugins/generators/kustomization.md
+          - SopsGenerator: plugins/generators/sops.md
+          - KCLGenerator: plugins/generators/kcl.md
+      - Transformers:
+          - Overview: plugins/transformers/index.md
+          - ReplacementTransformer: plugins/transformers/extended-replacement.md
+          - RemoveTransformer: plugins/transformers/remove.md
+          - KCLTransformer: plugins/transformers/kcl.md
+  - Build: build/index.md
+  - Argo CD: argocd.md
   - About:
       - Contributing: CONTRIBUTING.md
-      - "Code of Conduct": CODE_OF_CONDUCT.md
+      - Code of Conduct: CODE_OF_CONDUCT.md
