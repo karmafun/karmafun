@@ -1,0 +1,163 @@
+# The project configuration is at the bottom of the file.
+# Look for the `Project configuration` comment.
+# cSpell: disable
+theme:
+  name: "material"
+  language: en
+  font:
+    text: "Roboto"
+    code: "Roboto Mono"
+  features:
+    - navigation.footer
+    - navigation.indexes
+    - navigation.sections
+    - navigation.top
+    - navigation.tracking
+    - navigation.tabs
+    - content.action.edit
+    - content.action.view
+    - content.code.annotate
+    - content.code.copy
+    - content.code.select
+    - content.tooltips
+    - toc.follow
+    - search.highlight
+    - search.share
+    - search.suggest
+  logo: "img/logo.svg"
+  favicon: "img/logo.ico"
+  palette:
+    - media: "(prefers-color-scheme)"
+      scheme: default
+      primary: blue grey
+      accent: blue grey
+      toggle:
+        icon: material/lightbulb
+        name: "Switch to light mode"
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: blue grey
+      accent: blue grey
+      toggle:
+        icon: material/lightbulb-outline
+        name: "Switch to dark mode"
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: blue grey
+      accent: blue grey
+      toggle:
+        icon: material/lightbulb-auto-outline
+        name: "Switch to system preference"
+
+markdown_extensions:
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - toc:
+      permalink: true
+  - pymdownx.arithmatex
+  - pymdownx.betterem:
+      smart_enable: all
+  - pymdownx.caret
+  - pymdownx.critic
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+  - pymdownx.highlight:
+      # linenums: true
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.magiclink
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.snippets:
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
+  - sane_lists
+
+plugins:
+  - search:
+      separator: '[\s\-,:!=\[\]()"`/]+|\.(?!\d)|&[lg]t;|(?!\b)(?=[A-Z][a-z])'
+  - git-revision-date-localized:
+      enable_creation_date: true
+      type: timeago
+      enable_git_follow: false
+  - git-authors
+  - mermaid2
+  - awesome-nav
+  - open-in-new-tab:
+      add_icon: false
+  - glightbox:
+      touchNavigation: true
+      loop: false
+      effect: zoom
+      slide_effect: slide
+      width: auto
+      height: auto
+      zoomable: true
+      draggable: true
+      auto_caption: false
+      caption_position: bottom
+      background: white
+      shadow: true
+      manual: false
+
+extra_css:
+  - "css/termynal.css"
+  - "css/extras.css"
+
+extra_javascript:
+  - "js/termynal.js"
+
+# cspell: enable
+
+##############################################################################
+# Project configuration
+##############################################################################
+
+site_name: Karmafun
+site_description: Documentation for Karmafun - The Ultimate Kubernetes Development Environment bootstrapping tool.
+site_author: Antoine Martin
+site_url: https://karmafun.dev/
+
+repo_name: karmafun/karmafun
+repo_url: https://github.com/karmafun/karmafun
+edit_uri: edit/main/docs/
+
+docs_dir: docs
+site_dir: site
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/karmafun/karmafun
+      name: Karmafun project on GitHub
+    - icon: fontawesome/solid/globe
+      link: https://mrtn.me
+      name: Antoine Martin's Website
+
+copyright: |
+  Copyright &copy; Antoine Martin 2025-2026. All rights reserved.
+  Distributed under the <a href="https://github.com/karmafun/karmafun/tree/main/LICENSE">Apache 2.0 license</a>.
+
+# nav:
+#   - Introduction:
+#       - Welcome: README.md
+#   - About:
+#       - Contributing: CONTRIBUTING.md
+#       - "Code of Conduct": CODE_OF_CONDUCT.md

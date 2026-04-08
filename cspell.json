@@ -4,7 +4,11 @@
   "ignorePaths": [
     "go.sum",
     "go.mod",
-    "tests/**/*.yaml"
+    "tests/**/*.yaml",
+    "docs/docs/js/**",
+    "docs/docs/css/**",
+    "docs/docs/assets/**",
+    "docs/pyproject.toml"
   ],
   "dictionaryDefinitions": [],
   "dictionaries": [
@@ -22,7 +26,9 @@
     "dupl",
     "finalizer",
     "finalizers",
+    "fontawesome",
     "getsops",
+    "gitmoji",
     "gochecknoinits",
     "gojq",
     "golangci",
@@ -35,9 +41,11 @@
     "kustomizations",
     "Kustomizer",
     "kyaml",
+    "mkdocs",
     "nolint",
     "pipx",
     "Prefixf",
+    "pyproject",
     "resid",
     "resmap",
     "sish",
