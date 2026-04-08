@@ -1,9 +1,10 @@
 package utils
 
-// cSpell: words kioutil
+// cSpell: words kioutil seqs
 
 import (
 	"fmt"
+	"iter"
 	"strconv"
 
 	"sigs.k8s.io/kustomize/api/resmap"
@@ -188,4 +189,17 @@ func ResourceMapFromNodes(nodes []*yaml.RNode) resmap.ResMap {
 		}
 	}
 	return result
+}
+
+// Concat returns an iterator over the concatenation of the sequences.
+func Concat[V any](seqs ...iter.Seq[V]) iter.Seq[V] {
+	return func(yield func(V) bool) {
+		for _, seq := range seqs {
+			for e := range seq {
+				if !yield(e) {
+					return
+				}
+			}
+		}
+	}
 }

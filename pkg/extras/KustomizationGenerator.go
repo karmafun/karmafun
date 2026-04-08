@@ -27,9 +27,9 @@ func enablePlugins(opts *krusty.Options) *krusty.Options {
 	return opts
 }
 
-// runKustomizations runs the kustomization in dirname (URL compatible) with
+// RunKustomizations runs the kustomization in dirname (URL compatible) with
 // the filesystem fs.
-func runKustomizations(fs filesys.FileSystem, dirname string) (resmap.ResMap, error) {
+func RunKustomizations(fs filesys.FileSystem, dirname string) (resmap.ResMap, error) {
 	opts := enablePlugins(krusty.MakeDefaultOptions())
 	k := krusty.MakeKustomizer(opts)
 	resources, err := k.Run(fs, dirname)
@@ -50,7 +50,7 @@ func (p *KustomizationGeneratorPlugin) Config(_ *resmap.PluginHelpers, c []byte)
 
 // Generate generates the resources of the directory.
 func (p *KustomizationGeneratorPlugin) Generate() (resmap.ResMap, error) {
-	return runKustomizations(filesys.MakeFsOnDisk(), p.Directory)
+	return RunKustomizations(filesys.MakeFsOnDisk(), p.Directory)
 }
 
 // NewKustomizationGeneratorPlugin returns a newly Created KustomizationGenerator.
