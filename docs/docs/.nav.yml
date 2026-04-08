@@ -1,9 +1,11 @@
 nav:
-  - Home: index.md
-  - Installation: installation.md
+  - Introduction:
+      - Welcome: index.md
+      - Installation: installation.md
   - Usage:
       - Annotations: usage/annotations.md
       - Resource management: usage/resource-management.md
+      - Karmafun build: usage/karmafun-build.md
   - Plugins:
       - Overview: plugins/index.md
       - Builtin plugins: plugins/builtin.md
@@ -18,7 +20,6 @@ nav:
           - ReplacementTransformer: plugins/transformers/extended-replacement.md
           - RemoveTransformer: plugins/transformers/remove.md
           - KCLTransformer: plugins/transformers/kcl.md
-  - Build: build/index.md
   - Argo CD: argocd.md
   - About:
       - Contributing: CONTRIBUTING.md

@@ -1,6 +1,6 @@
 package build_test
 
-// cSpell: words filesys testify karmafun resmap pflag
+// cSpell: words filesys testify karmafun resmap pflag kustdir
 import (
 	"bytes"
 	"testing"

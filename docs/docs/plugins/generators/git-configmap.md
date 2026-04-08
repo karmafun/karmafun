@@ -1,18 +1,20 @@
-<!-- cSpell: words argocd autocloud citest kustomize -->
+<!-- cSpell: words myorg myrepo -->
 
 # GitConfigMapGenerator
 
 `GitConfigMapGenerator` works identically to kustomize's
 [`ConfigMapGenerator`](https://kubectl.docs.kubernetes.io/references/kustomize/builtins/#_configmapgenerator_)
-but automatically populates two additional entries from the local git repository:
+but automatically populates two additional entries from the local git
+repository:
 
-| Key               | Value                                            |
-| ----------------- | ------------------------------------------------ |
-| `repoURL`         | URL of the remote specified by `remoteName` (default: `origin`) |
-| `targetRevision`  | Short name of the current branch (`HEAD`)        |
+| Key              | Value                                                           |
+| ---------------- | --------------------------------------------------------------- |
+| `repoURL`        | URL of the remote specified by `remoteName` (default: `origin`) |
+| `targetRevision` | Short name of the current branch (`HEAD`)                       |
 
 This generator is particularly useful for Argo CD application customization
-where you need to propagate the current fork's URL and branch into every application.
+where you need to propagate the current fork's URL and branch into every
+application.
 
 ## Configuration
 

@@ -44,7 +44,7 @@ replacements:
 ## Structured content paths
 
 Prefix a path segment with `!!yaml.`, `!!json.`, `!!toml.`, or `!!ini.` to
-navigate inside a string field that contains serialised data in that format.
+navigate inside a string field that contains serialized data in that format.
 
 The typical use case is an Argo CD `Application` with inline Helm values:
 
@@ -85,17 +85,20 @@ This survives array reordering, unlike a hardcoded index like
 
 ## Regex replacement
 
-Use `!!regex.<pattern>.<group>` to replace a capture group within a string field:
+Use `!!regex.<pattern>.<group>` to replace a capture group within a string
+field:
 
 ```yaml
 fieldPaths:
   - data.config.!!regex.^\s+HostName\s+(\S+)\s*$.1
 ```
 
-- `^\s+HostName\s+(\S+)\s*$` — the regular expression (the whole line is matched).
+- `^\s+HostName\s+(\S+)\s*$` — the regular expression (the whole line is
+  matched).
 - `1` — the capture group number to replace.
 
-Example — change the `HostName` line in an SSH config stored as a ConfigMap field:
+Example — change the `HostName` line in an SSH config stored as a ConfigMap
+field:
 
 ```yaml
 replacements:
@@ -133,13 +136,12 @@ replacements:
 
 Supported encodings: `base64`, `bcrypt`, `hex`.
 
-!!! note
-    `bcrypt` generates a new hash on every run.
+!!! note `bcrypt` generates a new hash on every run.
 
 ## External source file
 
-Load replacement values from a file (or kustomization) instead of injecting
-them into the pipeline:
+Load replacement values from a file (or kustomization) instead of injecting them
+into the pipeline:
 
 ```yaml
 # properties.yaml  ← referenced, not injected
@@ -161,7 +163,7 @@ metadata:
     config.kubernetes.io/function: |
       exec:
         path: karmafun
-source: properties.yaml      # ← side-loaded; never enters the pipeline
+source: properties.yaml # ← side-loaded; never enters the pipeline
 replacements:
   - source:
       kind: PlatformValues

@@ -20,13 +20,13 @@ the build.
 karmafun build [flags] <kustomization directory>
 ```
 
-| Flag | Default | Description |
-| ---- | ------- | ----------- |
-| `--values-file` | `values.yaml` | Plain-text platform values file |
-| `--secrets-file` | `secrets.sops.yaml` | SOPS-encrypted secrets file |
-| `--output-directory` / `-o` | _(stdout)_ | Write each resource to `Kind-name.yaml` in this directory |
-| `--log-level` | `info` | `debug`, `info`, `warn`, `error` |
-| `--log-json` | `false` | Emit logs in JSON format |
+| Flag                        | Default             | Description                                               |
+| --------------------------- | ------------------- | --------------------------------------------------------- |
+| `--values-file`             | `values.yaml`       | Plain-text platform values file                           |
+| `--secrets-file`            | `secrets.sops.yaml` | SOPS-encrypted secrets file                               |
+| `--output-directory` / `-o` | _(stdout)_          | Write each resource to `Kind-name.yaml` in this directory |
+| `--log-level`               | `info`              | `debug`, `info`, `warn`, `error`                          |
+| `--log-json`                | `false`             | Emit logs in JSON format                                  |
 
 ## Values and secrets files
 
@@ -60,12 +60,13 @@ silently ignored.
 Any resource file ending with `.tmpl` or `.gotmpl` is rendered as a Go template.
 The merged values are available under `.Values`:
 
-| Expression | Description |
-| ---------- | ----------- |
-| `{{ .Values.data.key }}` | Top-level key |
-| `{{ .Values.data.nested.key }}` | Nested key |
+| Expression                      | Description   |
+| ------------------------------- | ------------- |
+| `{{ .Values.data.key }}`        | Top-level key |
+| `{{ .Values.data.nested.key }}` | Nested key    |
 
-All [Sprig][sprig] helper functions (`upper`, `trim`, `toJson`, …) are available.
+All [Sprig][sprig] helper functions (`upper`, `trim`, `toJson`, …) are
+available.
 
 **Example** — `application.yaml.gotmpl`:
 
@@ -77,8 +78,10 @@ metadata:
   namespace: argocd
 spec:
   source:
-    repoURL: git@github.com:{{ .Values.data.project.github.organization }}/{{ .Values.data.project.github.repo }}.git
-    targetRevision: {{ .Values.data.argocd.target_revision }}
+    repoURL:
+      git@github.com:{{ .Values.data.project.github.organization }}/{{
+      .Values.data.project.github.repo }}.git
+    targetRevision: { { .Values.data.argocd.target_revision } }
     path: deploy/k8s/{{ .Values.data.argocd.base_path }}
 ```
 

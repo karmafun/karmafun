@@ -2,8 +2,9 @@
 
 # Annotations reference
 
-karmafun behaviour is controlled through annotations on the **function
-configuration** resource (the YAML file referenced by `config.kubernetes.io/function`).
+karmafun behavior is controlled through annotations on the **function
+configuration** resource (the YAML file referenced by
+`config.kubernetes.io/function`).
 
 ## `config.kubernetes.io/function`
 
@@ -70,9 +71,9 @@ are removed before writing the output.
 config.karmafun.dev/local-config: "true"
 ```
 
-Resources without this annotation (and without explicit `config.karmafun.dev/path`)
-are saved to `.karmafun.yaml` in the configuration directory. Add `.karmafun.yaml`
-to `.gitignore` to avoid accidental commits.
+Resources without this annotation (and without explicit
+`config.karmafun.dev/path`) are saved to `.karmafun.yaml` in the configuration
+directory. Add `.karmafun.yaml` to `.gitignore` to avoid accidental commits.
 
 ---
 
