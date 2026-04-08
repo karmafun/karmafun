@@ -14,6 +14,7 @@ import (
 	"sigs.k8s.io/kustomize/kyaml/yaml"
 
 	"github.com/karmafun/karmafun/pkg/cmd/build"
+	"github.com/karmafun/karmafun/pkg/cmd/setup"
 	"github.com/karmafun/karmafun/pkg/plugins"
 	"github.com/karmafun/karmafun/pkg/utils"
 )
@@ -140,6 +141,7 @@ func main() {
 	cmd.Version = KarmafunVersion
 	command.AddGenerateDockerfile(cmd)
 	cmd.AddCommand(build.NewBuildCommand(nil, logOptions))
+	cmd.AddCommand(setup.NewSetupCommand(nil))
 	logOptions.AddFlags(cmd.PersistentFlags())
 	utils.AddConfigFlag(cmd)
 	var calledAs string
