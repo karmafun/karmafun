@@ -3,6 +3,7 @@ nav:
       - Welcome: index.md
       - Installation: installation.md
   - Usage:
+      - Running karmafun: usage/running.md
       - Annotations: usage/annotations.md
       - Resource management: usage/resource-management.md
       - Karmafun build: usage/karmafun-build.md
