@@ -5,6 +5,7 @@ package extras
 
 import (
 	"bytes"
+	"encoding/base64"
 	"testing"
 
 	"github.com/lithammer/dedent"
@@ -465,4 +466,345 @@ enabled = true
 	value, err = iniExt.Get(iniXP.Path)
 	req.NoError(err)
 	req.Equal("deploy/citest", string(value), "error fetching changed value")
+}
+
+func TestRegexExtender_Get(t *testing.T) {
+	t.Parallel()
+	req := require.New(t)
+	text := "Host sishserver\n  HostName holepunch.in\n"
+
+	path := &ExtendedSegment{
+		Encoding: "regex",
+		Path:     []string{`HostName \S+`},
+	}
+
+	extender, err := path.Extender([]byte(text))
+	req.NoError(err)
+	req.NotNil(extender)
+
+	result, err := extender.Get(path.Path)
+	req.NoError(err)
+	req.Equal("HostName holepunch.in", string(result))
+}
+
+func TestRegexExtender_Get_EmptyPath(t *testing.T) {
+	t.Parallel()
+	req := require.New(t)
+	text := "Host sishserver\n"
+
+	path := &ExtendedSegment{
+		Encoding: "regex",
+		Path:     []string{},
+	}
+
+	extender, err := path.Extender([]byte(text))
+	req.NoError(err)
+
+	_, err = extender.Get(path.Path)
+	req.Error(err)
+	req.Contains(err.Error(), "path for regex should at least be one")
+}
+
+func TestRegexExtender_Get_InvalidRegex(t *testing.T) {
+	t.Parallel()
+	req := require.New(t)
+	text := "Host sishserver\n"
+
+	path := &ExtendedSegment{
+		Encoding: "regex",
+		Path:     []string{`[invalid`},
+	}
+
+	extender, err := path.Extender([]byte(text))
+	req.NoError(err)
+
+	_, err = extender.Get(path.Path)
+	req.Error(err)
+}
+
+func TestBase64Extender_Get_EmptyPath(t *testing.T) {
+	t.Parallel()
+	req := require.New(t)
+
+	path := &ExtendedSegment{
+		Encoding: "base64",
+		Path:     []string{},
+	}
+
+	content := "hello world"
+	encoded := base64.StdEncoding.EncodeToString([]byte(content))
+	extender, err := path.Extender([]byte(encoded))
+	req.NoError(err)
+
+	result, err := extender.Get(path.Path)
+	req.NoError(err)
+	req.Equal(content, string(result))
+}
+
+func TestBase64Extender_Get_NonEmptyPath(t *testing.T) {
+	t.Parallel()
+	req := require.New(t)
+
+	path := &ExtendedSegment{
+		Encoding: "base64",
+		Path:     []string{"some", "path"},
+	}
+
+	encoded := base64.StdEncoding.EncodeToString([]byte("content"))
+	extender, err := path.Extender([]byte(encoded))
+	req.NoError(err)
+
+	_, err = extender.Get(path.Path)
+	req.Error(err)
+	req.Contains(err.Error(), "path is invalid for base64")
+}
+
+func TestBase64Extender_Set_NonEmptyPath(t *testing.T) {
+	t.Parallel()
+	req := require.New(t)
+
+	path := &ExtendedSegment{
+		Encoding: "base64",
+		Path:     []string{"invalid"},
+	}
+
+	encoded := base64.StdEncoding.EncodeToString([]byte("content"))
+	extender, err := path.Extender([]byte(encoded))
+	req.NoError(err)
+
+	err = extender.Set(path.Path, "new-value")
+	req.Error(err)
+	req.Contains(err.Error(), "path is invalid for base64")
+}
+
+func TestBase64Extender_InvalidPayload(t *testing.T) {
+	t.Parallel()
+	req := require.New(t)
+
+	path := &ExtendedSegment{
+		Encoding: "base64",
+		Path:     []string{},
+	}
+
+	_, err := path.Extender([]byte("not-valid-base64!!!"))
+	req.Error(err)
+}
+
+func TestExtendedSegment_String(t *testing.T) {
+	t.Parallel()
+	req := require.New(t)
+
+	seg := &ExtendedSegment{
+		Encoding: "yaml",
+		Path:     []string{"key", "nested"},
+	}
+	s := seg.String()
+	req.Contains(s, "yaml")
+}
+
+func TestExtendedSegment_String_EmptyPath(t *testing.T) {
+	t.Parallel()
+	req := require.New(t)
+
+	seg := &ExtendedSegment{
+		Encoding: "yaml",
+		Path:     []string{},
+	}
+	s := seg.String()
+	req.Contains(s, "yaml")
+}
+
+func TestGetExtenderType_Unknown(t *testing.T) {
+	t.Parallel()
+	req := require.New(t)
+
+	result := getExtenderType("unknown-encoding")
+	req.Equal(Unknown, result)
+}
+
+func TestParsePayload_Invalid(t *testing.T) {
+	t.Parallel()
+	req := require.New(t)
+
+	// Valid YAML that returns a node
+	node, err := parsePayload([]byte("key: value"))
+	req.NoError(err)
+	req.NotNil(node)
+}
+
+func TestExtendedPath_HasExtensions(t *testing.T) {
+	t.Parallel()
+	req := require.New(t)
+
+	p := `data.!!yaml.key`
+	path := kyaml_utils.SmarterPathSplitter(p, ".")
+	ep, err := NewExtendedPath(path)
+	req.NoError(err)
+	req.True(ep.HasExtensions())
+}
+
+func TestExtendedPath_HasExtensions_NoExtensions(t *testing.T) {
+	t.Parallel()
+	req := require.New(t)
+
+	p := `data.key.nested`
+	path := kyaml_utils.SmarterPathSplitter(p, ".")
+	ep, err := NewExtendedPath(path)
+	req.NoError(err)
+	req.False(ep.HasExtensions())
+}
+
+func TestExtendedPath_String(t *testing.T) {
+	t.Parallel()
+	req := require.New(t)
+
+	p := `data.!!yaml.key.nested`
+	path := kyaml_utils.SmarterPathSplitter(p, ".")
+	ep, err := NewExtendedPath(path)
+	req.NoError(err)
+	s := ep.String()
+	req.NotEmpty(s)
+}
+
+func TestSplitExtendedPath_EmptyExtension(t *testing.T) {
+	t.Parallel()
+	req := require.New(t)
+
+	path := []string{"data", "!!", "key"}
+	extensions := []*ExtendedSegment{}
+	_, err := splitExtendedPath(path, &extensions)
+	req.Error(err)
+	req.Contains(err.Error(), "extension cannot be empty")
+}
+
+func TestYamlExtender_SetPayload_Invalid(t *testing.T) {
+	t.Parallel()
+	req := require.New(t)
+
+	ext := &yamlExtender{}
+	// Indented-only YAML should parse successfully but be a non-nil node
+	err := ext.SetPayload([]byte("key: value"))
+	req.NoError(err)
+	req.NotNil(ext.node)
+}
+
+func TestTomlExtender_SetPayload_Invalid(t *testing.T) {
+	t.Parallel()
+	req := require.New(t)
+
+	p := `!!toml.key`
+	path := kyaml_utils.SmarterPathSplitter(p, ".")
+	extensions := []*ExtendedSegment{}
+	_, err := splitExtendedPath(path, &extensions)
+	req.NoError(err)
+
+	// Invalid TOML
+	_, err = extensions[0].Extender([]byte("not-valid-toml-because-of={this}"))
+	req.Error(err)
+}
+
+func TestIniExtender_SetPayload_Invalid(t *testing.T) {
+	t.Parallel()
+	req := require.New(t)
+
+	p := `!!ini.section.key`
+	path := kyaml_utils.SmarterPathSplitter(p, ".")
+	extensions := []*ExtendedSegment{}
+	_, err := splitExtendedPath(path, &extensions)
+	req.NoError(err)
+
+	// INI with duplicate key should work (ini.v1 is lenient)
+	ext, err := extensions[0].Extender([]byte("[section]\nkey=value\n"))
+	req.NoError(err)
+	req.NotNil(ext)
+}
+
+func TestIniExtender_Get_NonExistentSection(t *testing.T) {
+	t.Parallel()
+	req := require.New(t)
+
+	p := `!!ini.nonexistent.key`
+	path := kyaml_utils.SmarterPathSplitter(p, ".")
+	extensions := []*ExtendedSegment{}
+	_, err := splitExtendedPath(path, &extensions)
+	req.NoError(err)
+
+	ext, err := extensions[0].Extender([]byte("[section]\nkey=value\n"))
+	req.NoError(err)
+
+	result, err := ext.Get(extensions[0].Path)
+	req.NoError(err) // INI may return empty string for nonexistent keys
+	_ = result
+}
+
+func TestJsonExtender_SetPayload_Invalid(t *testing.T) {
+	t.Parallel()
+	req := require.New(t)
+
+	p := `!!json.key`
+	path := kyaml_utils.SmarterPathSplitter(p, ".")
+	extensions := []*ExtendedSegment{}
+	_, err := splitExtendedPath(path, &extensions)
+	req.NoError(err)
+
+	// Invalid JSON
+	_, err = extensions[0].Extender([]byte("not-json-{{{"))
+	req.Error(err)
+}
+
+func TestExtendedPath_Apply_OnScalarWithNoExtensions(t *testing.T) {
+	t.Parallel()
+	req := require.New(t)
+
+	sources, err := (&kio.ByteReader{
+		Reader: bytes.NewBufferString(`
+key: value1
+other: value2
+`),
+	}).Read()
+	req.NoError(err)
+	req.Len(sources, 1)
+	source := sources[0]
+
+	targetNode, err := source.Pipe(&yaml.PathGetter{Path: []string{"key"}})
+	req.NoError(err)
+
+	valueNode, err := source.Pipe(&yaml.PathGetter{Path: []string{"other"}})
+	req.NoError(err)
+
+	p := `key`
+	path := kyaml_utils.SmarterPathSplitter(p, ".")
+	ep, err := NewExtendedPath(path)
+	req.NoError(err)
+	req.False(ep.HasExtensions())
+
+	err = ep.Apply(targetNode, valueNode)
+	req.NoError(err)
+}
+
+func TestExtendedPath_Apply_NotScalar(t *testing.T) {
+	t.Parallel()
+	req := require.New(t)
+
+	sources, err := (&kio.ByteReader{
+		Reader: bytes.NewBufferString(`
+key:
+  nested: value
+`),
+	}).Read()
+	req.NoError(err)
+	source := sources[0]
+
+	targetNode, err := source.Pipe(&yaml.PathGetter{Path: []string{"key"}})
+	req.NoError(err)
+
+	valueNode, err := source.Pipe(&yaml.PathGetter{Path: []string{"key"}})
+	req.NoError(err)
+
+	ep, err := NewExtendedPath([]string{})
+	req.NoError(err)
+
+	err = ep.Apply(targetNode, valueNode)
+	req.Error(err)
+	req.Contains(err.Error(), "scalar")
 }

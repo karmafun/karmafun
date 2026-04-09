@@ -3,6 +3,8 @@ package build_test
 // cSpell: words filesys testify karmafun resmap pflag kustdir
 import (
 	"bytes"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -299,4 +301,82 @@ resources: []
 	// We cannot easily run the full command without setting up plugin dirs on disk,
 	// but we verify command structure here.
 	req.Equal("build [flags] <kustomization directory>", cmd.Use)
+}
+
+func TestNewBuildCommand_RunsAndOutputsYAML(t *testing.T) {
+	req := require.New(t)
+
+	// Create a temporary directory with a real kustomization
+	tmpDir, err := os.MkdirTemp("", "karmafun-build-test-")
+	req.NoError(err)
+	defer os.RemoveAll(tmpDir)
+
+	// Create a simple kustomization with a configmap
+	kustContent := `apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+configMapGenerator:
+  - name: test-config
+    literals:
+      - key=value
+`
+	err = os.WriteFile(filepath.Join(tmpDir, "kustomization.yaml"), []byte(kustContent), 0600)
+	req.NoError(err)
+
+	// Also create empty values and secrets files (non-existent is handled gracefully)
+	t.Setenv("KUSTOMIZE_PLUGIN_HOME", tmpDir)
+
+	buildOpts := build.NewBuildOptions()
+	buildOpts.ValuesFile = filepath.Join(tmpDir, "nonexistent-values.yaml")
+	buildOpts.SecretsFile = filepath.Join(tmpDir, "nonexistent-secrets.yaml")
+
+	var buf bytes.Buffer
+
+	cmd := build.NewBuildCommand(buildOpts, nil)
+	cmd.SetOut(&buf)
+
+	err = cmd.RunE(cmd, []string{tmpDir})
+	req.NoError(err)
+
+	output := buf.String()
+	req.Contains(output, "ConfigMap")
+	req.Contains(output, "test-config")
+}
+
+func TestNewBuildCommand_RunsAndOutputsToDir(t *testing.T) {
+	req := require.New(t)
+
+	// Create a temporary directory with a real kustomization
+	tmpDir, err := os.MkdirTemp("", "karmafun-build-test-")
+	req.NoError(err)
+	defer os.RemoveAll(tmpDir)
+
+	// Create a simple kustomization with a configmap
+	kustContent := `apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+configMapGenerator:
+  - name: test-config
+    literals:
+      - key=value
+`
+	err = os.WriteFile(filepath.Join(tmpDir, "kustomization.yaml"), []byte(kustContent), 0600)
+	req.NoError(err)
+
+	outputDir := filepath.Join(tmpDir, "output")
+
+	t.Setenv("KUSTOMIZE_PLUGIN_HOME", tmpDir)
+
+	buildOpts := build.NewBuildOptions()
+	buildOpts.ValuesFile = filepath.Join(tmpDir, "nonexistent-values.yaml")
+	buildOpts.SecretsFile = filepath.Join(tmpDir, "nonexistent-secrets.yaml")
+	buildOpts.OutputDirectory = outputDir
+
+	cmd := build.NewBuildCommand(buildOpts, nil)
+
+	err = cmd.RunE(cmd, []string{tmpDir})
+	req.NoError(err)
+
+	// Verify files were created in output directory
+	entries, err := os.ReadDir(outputDir)
+	req.NoError(err)
+	req.NotEmpty(entries)
 }

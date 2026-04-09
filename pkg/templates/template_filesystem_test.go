@@ -2,6 +2,7 @@ package templates_test
 
 // cSpell: words filesys gotmpl sprig tmpl myresource missingkey testdir
 import (
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -179,4 +180,79 @@ func TestTemplateFS_InvalidTemplate(t *testing.T) {
 	_, err = tfs.ReadFile("invalid.yaml.tmpl")
 	req.Error(err, "should error on invalid template syntax")
 	req.Contains(err.Error(), "invalid.yaml.tmpl")
+}
+
+func TestTemplateFS_CleanedAbs(t *testing.T) {
+	t.Parallel()
+	req := require.New(t)
+	fs := filesys.MakeFsOnDisk()
+	tfs := templates.NewTemplateFS(fs, map[string]any{})
+
+	dir, file, err := tfs.CleanedAbs("/tmp")
+	req.NoError(err)
+	req.NotEmpty(dir)
+	req.Empty(file)
+}
+
+func TestTemplateFS_Glob(t *testing.T) {
+	t.Parallel()
+	req := require.New(t)
+	fs := filesys.MakeFsInMemory()
+	err := fs.WriteFile("/file1.yaml", []byte("content1"))
+	req.NoError(err)
+	err = fs.WriteFile("/file2.yaml", []byte("content2"))
+	req.NoError(err)
+
+	tfs := templates.NewTemplateFS(fs, map[string]any{})
+	// The Glob function delegates to the underlying fs, just verify it works
+	_, err = tfs.Glob("/*.yaml")
+	req.NoError(err)
+}
+
+func TestTemplateFS_Open(t *testing.T) {
+	t.Parallel()
+	req := require.New(t)
+	fs := filesys.MakeFsInMemory()
+	err := fs.WriteFile("testfile.txt", []byte("test content"))
+	req.NoError(err)
+
+	tfs := templates.NewTemplateFS(fs, map[string]any{})
+	file, err := tfs.Open("testfile.txt")
+	req.NoError(err)
+	req.NotNil(file)
+}
+
+func TestTemplateFS_Create(t *testing.T) {
+	t.Parallel()
+	req := require.New(t)
+	fs := filesys.MakeFsInMemory()
+	tfs := templates.NewTemplateFS(fs, map[string]any{})
+
+	file, err := tfs.Create("newfile.txt")
+	req.NoError(err)
+	req.NotNil(file)
+}
+
+func TestTemplateFS_Walk(t *testing.T) {
+	t.Parallel()
+	req := require.New(t)
+	fs := filesys.MakeFsInMemory()
+	err := fs.MkdirAll("dir/subdir")
+	req.NoError(err)
+	err = fs.WriteFile("dir/file1.yaml", []byte("content1"))
+	req.NoError(err)
+	err = fs.WriteFile("dir/subdir/file2.yaml", []byte("content2"))
+	req.NoError(err)
+
+	tfs := templates.NewTemplateFS(fs, map[string]any{})
+	var visited []string
+	err = tfs.Walk("dir", func(path string, _ os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		visited = append(visited, path)
+		return nil
+	})
+	req.NoError(err)
+	req.NotEmpty(visited)
 }

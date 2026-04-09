@@ -312,3 +312,79 @@ func TestBindFlags_Recurses_Subcommands(t *testing.T) {
 	req.NotNil(flag)
 	req.Equal("child-from-viper", flag.Value.String())
 }
+
+// --- BindFlag tests ---
+
+func TestBindFlag_BindsPersistentFlag(t *testing.T) {
+	t.Parallel()
+	req := require.New(t)
+	v := viper.New()
+
+	flags := pflag.NewFlagSet("test", pflag.ContinueOnError)
+	flags.String("my-flag", "default", "test flag")
+	flag := flags.Lookup("my-flag")
+	req.NotNil(flag)
+
+	err := utils.BindFlag(flag, v, "my_flag")
+	req.NoError(err)
+
+	v.Set("my_flag", "from-viper")
+	req.Equal("from-viper", v.GetString("my_flag"))
+}
+
+// --- BindFlagsToViper tests ---
+
+func TestBindFlagsToViper_BindsFlags(t *testing.T) {
+	t.Parallel()
+	req := require.New(t)
+	v := viper.New()
+
+	cmd := &cobra.Command{Use: "test"}
+	cmd.PersistentFlags().String("my-flag", "default", "test flag")
+
+	utils.BindFlagsToViper(cmd, v)
+	// After binding, setting viper value should be accessible
+	v.Set("my_flag", "bound-value")
+	req.Equal("bound-value", v.GetString("my_flag"))
+}
+
+// --- InitializeConfiguration tests ---
+
+func TestInitializeConfiguration_NoConfigFile(t *testing.T) {
+	req := require.New(t)
+	v := viper.New()
+
+	rootCmd := &cobra.Command{Use: "testapp"}
+	utils.AddConfigFlag(rootCmd)
+
+	err := utils.InitializeConfiguration(rootCmd, v)
+	req.NoError(err)
+}
+
+func TestInitializeConfiguration_WithConfigFileFlag(t *testing.T) {
+	req := require.New(t)
+	v := viper.New()
+
+	rootCmd := &cobra.Command{Use: "testapp"}
+	utils.AddConfigFlag(rootCmd)
+
+	// Set config flag to a non-existent file - should not error since ReadInConfig is best-effort
+	err := rootCmd.PersistentFlags().Set(utils.ConfigFlag, "/tmp/nonexistent-config-file-karmafun.yaml")
+	req.NoError(err)
+
+	err = utils.InitializeConfiguration(rootCmd, v)
+	req.NoError(err)
+}
+
+func TestInitializeConfiguration_WithEnvVars(t *testing.T) {
+	t.Setenv("TESTAPP_MY_FLAG", "env-value")
+	req := require.New(t)
+	v := viper.New()
+
+	rootCmd := &cobra.Command{Use: "testapp"}
+	utils.AddConfigFlag(rootCmd)
+	rootCmd.Flags().String("my-flag", "default", "test flag")
+
+	err := utils.InitializeConfiguration(rootCmd, v)
+	req.NoError(err)
+}
