@@ -3,6 +3,8 @@ package extras_test
 // cSpell: words karmafun kcl
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -137,6 +139,64 @@ spec:
 `)
 	err = plugin.Config(helpers, config)
 	req.NoError(err)
+	got, gotErr := plugin.Generate()
+	req.NoError(gotErr)
+	req.NotNil(got)
+	req.Equal(1, got.Size())
+}
+
+func TestKCLGeneratorPlugin_WithParamResources_LoadsParamResource(t *testing.T) {
+	// Not parallel because it changes working directory
+	req := require.New(t)
+
+	// Create a temporary directory with a param resource YAML file
+	tmpDir, err := os.MkdirTemp("", "karmafun-kcl-param-")
+	req.NoError(err)
+	defer os.RemoveAll(tmpDir)
+
+	paramResourceContent := `apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: param-resource
+data:
+  inputKey: inputValue
+`
+	paramResourceFile := filepath.Join(tmpDir, "param-resource.yaml")
+	err = os.WriteFile(paramResourceFile, []byte(paramResourceContent), 0600)
+	req.NoError(err)
+
+	// Change to temp directory so loader can find the file
+	originalDir, err := os.Getwd()
+	req.NoError(err)
+	defer func() {
+		err = os.Chdir(originalDir)
+		req.NoError(err)
+	}()
+	err = os.Chdir(tmpDir)
+	req.NoError(err)
+
+	helpers, err := plugins.NewPluginHelpers()
+	req.NoError(err)
+
+	plugin := &extras.KCLGeneratorPlugin{}
+	config := []byte(`
+apiVersion: kcl.dev/v1alpha1
+kind: KCLRun
+metadata:
+  name: test-kcl
+param_resources:
+  - param-resource.yaml
+spec:
+  source: |
+    {
+      apiVersion = "v1"
+      kind = "ConfigMap"
+      metadata.name = "output-configmap"
+    }
+`)
+	err = plugin.Config(helpers, config)
+	req.NoError(err)
+
 	got, gotErr := plugin.Generate()
 	req.NoError(gotErr)
 	req.NotNil(got)

@@ -380,3 +380,38 @@ configMapGenerator:
 	req.NoError(err)
 	req.NotEmpty(entries)
 }
+
+func TestNewBuildCommand_PostRunE(t *testing.T) {
+	req := require.New(t)
+
+	tmpDir, err := os.MkdirTemp("", "karmafun-build-test-")
+	req.NoError(err)
+	defer os.RemoveAll(tmpDir)
+
+	t.Setenv("KUSTOMIZE_PLUGIN_HOME", tmpDir)
+
+	buildOpts := build.NewBuildOptions()
+	cmd := build.NewBuildCommand(buildOpts, nil)
+	req.NotNil(cmd.PostRunE)
+
+	// PostRunE should succeed
+	err = cmd.PostRunE(cmd, []string{})
+	req.NoError(err)
+}
+
+func TestNewBuildCommand_RunE_InvalidKustomizationDir(t *testing.T) {
+	req := require.New(t)
+
+	tmpDir, err := os.MkdirTemp("", "karmafun-build-test-")
+	req.NoError(err)
+	defer os.RemoveAll(tmpDir)
+
+	t.Setenv("KUSTOMIZE_PLUGIN_HOME", tmpDir)
+
+	buildOpts := build.NewBuildOptions()
+	cmd := build.NewBuildCommand(buildOpts, nil)
+
+	// Try to run with a directory that has no kustomization.yaml
+	err = cmd.RunE(cmd, []string{tmpDir})
+	req.Error(err)
+}

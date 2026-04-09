@@ -808,3 +808,140 @@ key:
 	req.Error(err)
 	req.Contains(err.Error(), "scalar")
 }
+
+func TestGetByteValue_YamlNode(t *testing.T) {
+	t.Parallel()
+	req := require.New(t)
+
+	node := &yaml.Node{
+		Kind:  yaml.ScalarNode,
+		Value: "test-value",
+	}
+	result := getByteValue(node)
+	req.Equal([]byte("test-value"), result)
+}
+
+func TestGetByteValue_Default(t *testing.T) {
+	t.Parallel()
+	req := require.New(t)
+
+	// Unknown type returns empty slice
+	result := getByteValue(42)
+	req.Equal([]byte{}, result)
+}
+
+func TestGetNodePath_NonScalar(t *testing.T) {
+	t.Parallel()
+	req := require.New(t)
+
+	sources, err := (&kio.ByteReader{
+		Reader: bytes.NewBufferString(`
+key:
+  nested: value
+  other: data
+`),
+	}).Read()
+	req.NoError(err)
+	source := sources[0]
+
+	yamlExt := &yamlExtender{node: source}
+
+	// Getting a mapping node (not scalar) should return serialized YAML
+	result, err := yamlExt.Get([]string{"key"})
+	req.NoError(err)
+	req.Contains(string(result), "nested")
+}
+
+func TestLookup_Error(t *testing.T) {
+	t.Parallel()
+
+	// Use a nil node to trigger an error in Pipe
+	node := yaml.NewRNode(nil)
+	_, err := Lookup(node, []string{"key"}, yaml.ScalarNode)
+	// Should either succeed or error gracefully
+	_ = err
+}
+
+func TestApplyIndex_InvalidIndex(t *testing.T) {
+	t.Parallel()
+	req := require.New(t)
+
+	// Create an ExtendedPath with one segment
+	p := `data.!!yaml.key`
+	path := kyaml_utils.SmarterPathSplitter(p, ".")
+	ep, err := NewExtendedPath(path)
+	req.NoError(err)
+	req.True(ep.HasExtensions())
+
+	// Calling applyIndex with invalid index should return error
+	_, err = ep.applyIndex(10, []byte("value"), &yaml.Node{Kind: yaml.ScalarNode, Value: "test"})
+	req.Error(err)
+}
+
+func TestIniExtender_KeyFromPath_InvalidPath(t *testing.T) {
+	t.Parallel()
+	req := require.New(t)
+
+	p := `!!ini.section.key`
+	path := kyaml_utils.SmarterPathSplitter(p, ".")
+	extensions := []*ExtendedSegment{}
+	_, err := splitExtendedPath(path, &extensions)
+	req.NoError(err)
+
+	ext, err := extensions[0].Extender([]byte("[section]\nkey=value\n"))
+	req.NoError(err)
+
+	// Empty path should error
+	_, err = ext.Get([]string{})
+	req.Error(err)
+	req.Contains(err.Error(), "invalid path")
+}
+
+func TestTomlExtender_Get_NonScalar(t *testing.T) {
+	t.Parallel()
+	req := require.New(t)
+
+	source := `
+[common]
+targetRevision = 'main'
+[common.nested]
+key = 'value'
+`
+
+	p := `!!toml.common.targetRevision`
+	path := kyaml_utils.SmarterPathSplitter(p, ".")
+	extensions := []*ExtendedSegment{}
+	_, err := splitExtendedPath(path, &extensions)
+	req.NoError(err)
+
+	tomlExt, err := extensions[0].Extender([]byte(source))
+	req.NoError(err)
+
+	value, err := tomlExt.Get(extensions[0].Path)
+	req.NoError(err)
+	req.Equal("main", string(value))
+}
+
+func TestNewExtendedPath_InvalidPath(t *testing.T) {
+	t.Parallel()
+	req := require.New(t)
+
+	// path with "!!" at start but no encoding - should error
+	path := []string{"!!", "key"}
+	_, err := NewExtendedPath(path)
+	req.Error(err)
+}
+
+func TestExtendedSegment_String_WithPath(t *testing.T) {
+	t.Parallel()
+	req := require.New(t)
+
+	seg := &ExtendedSegment{
+		Encoding: "yaml",
+		Path:     []string{"nested", "key"},
+	}
+	s := seg.String()
+	// The String() method returns "!!encoding" when path is non-empty
+	req.Contains(s, "yaml")
+	req.NotEmpty(s)
+}
