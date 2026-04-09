@@ -1,4 +1,4 @@
-name: Make release on tag
+name: GoReleaser build and release
 # cSpell: words pubout rootfs mlugg
 
 on:

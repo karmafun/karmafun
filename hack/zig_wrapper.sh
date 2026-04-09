@@ -1,4 +1,5 @@
 #!/bin/bash
+# cSpell: words FIPS
 #
 # When using CGO (which is required when using go-microsoft for FIPS builds), Go has an
 # issue on arm64 where it passes -fuse-ld=gold to GCC which is a workaround for an issue

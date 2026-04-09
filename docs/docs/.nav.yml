@@ -1,0 +1,27 @@
+nav:
+  - Introduction:
+      - Welcome: index.md
+      - Installation: installation.md
+  - Usage:
+      - Running karmafun: usage/running.md
+      - Annotations: usage/annotations.md
+      - Resource management: usage/resource-management.md
+      - Karmafun build: usage/karmafun-build.md
+  - Plugins:
+      - Overview: plugins/index.md
+      - Builtin plugins: plugins/builtin.md
+      - Generators:
+          - Overview: plugins/generators/index.md
+          - GitConfigMapGenerator: plugins/generators/git-configmap.md
+          - KustomizationGenerator: plugins/generators/kustomization.md
+          - SopsGenerator: plugins/generators/sops.md
+          - KCLGenerator: plugins/generators/kcl.md
+      - Transformers:
+          - Overview: plugins/transformers/index.md
+          - ReplacementTransformer: plugins/transformers/extended-replacement.md
+          - RemoveTransformer: plugins/transformers/remove.md
+          - KCLTransformer: plugins/transformers/kcl.md
+  - Argo CD: argocd.md
+  - About:
+      - Contributing: CONTRIBUTING.md
+      - Code of Conduct: CODE_OF_CONDUCT.md
