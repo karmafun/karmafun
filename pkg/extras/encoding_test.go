@@ -59,7 +59,7 @@ func TestEncodeHex_Empty(t *testing.T) {
 
 	result, err := extras.EncodeHex("")
 	req.NoError(err)
-	req.Equal("", result)
+	req.Empty(result)
 }
 
 func TestGetEncodedValue_Base64(t *testing.T) {

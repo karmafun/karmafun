@@ -13,10 +13,10 @@ import (
 func TestMergeMaps(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name string
 		a    map[string]any
 		b    map[string]any
 		want map[string]any
+		name string
 	}{
 		{
 			name: "Empty maps return empty map",

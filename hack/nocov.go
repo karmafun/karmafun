@@ -1,15 +1,16 @@
 // cSpell: words Stmts fset forbidigo gosec gocyclo wrapcheck
 //
-//nolint:forbidigo,gosec,gocyclo,wrapcheck,exhaustive // Vibe coded tool
+//nolint:gosec,gocyclo // Vibe coded tool
 package main
 
 import (
 	"bufio"
 	"errors"
 	"fmt"
+	"go/ast"
 	"go/parser"
-	"go/scanner"
 	"go/token"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -19,13 +20,14 @@ import (
 )
 
 type lineRange struct {
-	start int
-	end   int
+	expandedFrom *lineRange
+	start        int
+	end          int
+	col          int
 }
 
 type fileAnalysis struct {
-	nocovLines map[int]struct{}
-	blocks     []lineRange
+	nocovRanges []lineRange
 }
 
 type coverageEntry struct {
@@ -40,11 +42,23 @@ type coverageEntry struct {
 	lineNumber int
 }
 
+func (e *coverageEntry) Len() int {
+	return e.endLine - e.startLine + 1
+}
+
 var coverageLineRE = regexp.MustCompile(`^(.+):(\d+)\.(\d+),(\d+)\.(\d+)\s+(\d+)\s+(\d+)$`)
 
 func main() {
+	handler := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo})
+	slog.SetDefault(slog.New(handler))
+
 	if len(os.Args) < 2 || len(os.Args) > 3 {
-		fmt.Fprintf(os.Stderr, "usage: %s <coverage-file> [output-file]\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "usage: %s <coverage-file> [output-file]\n\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "example: %s coverage.out coverage.nocov\n", os.Args[0])
+		fmt.Fprintf(
+			os.Stderr,
+			"If output-file is not provided, the filtered coverage will be written to <coverage-file>.nocov\n",
+		)
 		os.Exit(2)
 	}
 
@@ -110,8 +124,8 @@ func main() {
 		}
 
 		if shouldIgnore(entry, analysis) {
-			ignoredByFile[relPath]++
-			totalIgnored++
+			ignoredByFile[relPath] += entry.Len()
+			totalIgnored += entry.Len()
 			continue
 		}
 
@@ -201,8 +215,8 @@ func parseCoverageEntry(line string, lineNumber int) (*coverageEntry, error) {
 func resolveSourcePath(moduleName, coveredPath string) (string, string, error) {
 	relPath := coveredPath
 	prefix := moduleName + "/"
-	if strings.HasPrefix(coveredPath, prefix) {
-		relPath = strings.TrimPrefix(coveredPath, prefix)
+	if after, ok := strings.CutPrefix(coveredPath, prefix); ok {
+		relPath = after
 	}
 
 	relPath = filepath.Clean(relPath)
@@ -215,21 +229,13 @@ func resolveSourcePath(moduleName, coveredPath string) (string, string, error) {
 }
 
 func buildAnalysis(sourcePath string) (*fileAnalysis, error) {
-	content, err := os.ReadFile(sourcePath)
-	if err != nil {
-		return nil, err
-	}
-
-	source := string(content)
-	lines := strings.Split(source, "\n")
-
 	fset := token.NewFileSet()
-	file, err := parser.ParseFile(fset, sourcePath, source, parser.ParseComments)
+	file, err := parser.ParseFile(fset, sourcePath, nil, parser.ParseComments)
 	if err != nil {
 		return nil, err
 	}
 
-	nocovLines := make(map[int]struct{})
+	nocovRanges := []lineRange{}
 	for _, group := range file.Comments {
 		for _, c := range group.List {
 			if !strings.HasPrefix(c.Text, "//") {
@@ -239,129 +245,114 @@ func buildAnalysis(sourcePath string) (*fileAnalysis, error) {
 			if !strings.HasPrefix(commentText, "nocov") {
 				continue
 			}
-			line := fset.Position(c.Slash).Line
-			nocovLines[line] = struct{}{}
+			pos := fset.Position(group.Pos())
+			nocovRange := lineRange{
+				start: pos.Line,
+				end:   fset.Position(group.End()).Line,
+				col:   pos.Column,
+			}
+			nocovRanges = append(nocovRanges, nocovRange)
 		}
 	}
 
-	braceMap := buildBraceMap(sourcePath, source)
+	slog.Debug("found nocov ranges", "count", len(nocovRanges), "sourcePath", sourcePath, "nocovRanges", nocovRanges)
 
-	blocks := make([]lineRange, 0)
-	seenBlocks := make(map[lineRange]struct{})
-	for nocovLine := range nocovLines {
-		for _, candidate := range []int{nocovLine, nocovLine + 1} {
-			if candidate <= 0 || candidate > len(lines) {
-				continue
+	e := &rangeExpander{
+		fset:         fset,
+		inlineRanges: &nocovRanges,
+	}
+	ast.Walk(e, file)
+
+	slog.Debug(
+		"expanded ranges",
+		"count",
+		len(e.expandedRanges),
+		"sourcePath",
+		sourcePath,
+		"expandedRanges",
+		e.expandedRanges,
+	)
+
+	allRanges := make([]lineRange, 0, len(nocovRanges)+len(e.expandedRanges))
+	for i := 0; i < len(nocovRanges); i++ {
+		r := &nocovRanges[i]
+		hasBeenExpanded := false
+		for _, e := range e.expandedRanges {
+			if e.expandedFrom == r {
+				allRanges = append(allRanges, e)
+				hasBeenExpanded = true
+				// Not sure if there can be multiple expansions from the same original range, but if so we want to
+				// include them all, so we don't break here
+				// break
 			}
-			if !lineStartsBlock(lines[candidate-1]) {
-				continue
-			}
-			endLine, ok := pickBlockEnd(braceMap, candidate)
-			if !ok {
-				continue
-			}
-			r := lineRange{start: candidate, end: endLine}
-			if _, exists := seenBlocks[r]; exists {
-				continue
-			}
-			seenBlocks[r] = struct{}{}
-			blocks = append(blocks, r)
+		}
+		if !hasBeenExpanded {
+			allRanges = append(allRanges, *r)
 		}
 	}
 
-	sort.Slice(blocks, func(i, j int) bool {
-		if blocks[i].start == blocks[j].start {
-			return blocks[i].end < blocks[j].end
-		}
-		return blocks[i].start < blocks[j].start
-	})
+	slog.Debug("all ranges", "count", len(allRanges), "sourcePath", sourcePath, "allRanges", allRanges)
 
 	return &fileAnalysis{
-		nocovLines: nocovLines,
-		blocks:     blocks,
+		nocovRanges: allRanges,
 	}, nil
 }
 
-func buildBraceMap(filename, source string) map[int][]int {
-	fset := token.NewFileSet()
-	file := fset.AddFile(filename, -1, len(source))
+type rangeExpander struct {
+	fset           *token.FileSet
+	inlineRanges   *[]lineRange
+	expandedRanges []lineRange
+}
 
-	var s scanner.Scanner
-	s.Init(file, []byte(source), nil, 0)
-
-	type openBrace struct {
-		line int
+func (e *rangeExpander) Visit(node ast.Node) ast.Visitor {
+	if node == nil {
+		return e
 	}
 
-	stack := make([]openBrace, 0)
-	braceMap := make(map[int][]int)
+	nodeStartPos := e.fset.Position(node.Pos())
+	nodeStartLine := nodeStartPos.Line
+	nodeEndLine := e.fset.Position(node.End()).Line
+	block, isBlock := node.(*ast.BlockStmt)
 
-	for {
-		pos, tok, _ := s.Scan()
-		if tok == token.EOF {
+	var foundRange *lineRange
+	for i := 0; i < len(*e.inlineRanges); i++ {
+		r := &(*e.inlineRanges)[i]
+		if r.end == nodeStartLine-1 && nodeStartPos.Column == r.col {
+			slog.Debug("Nocov comment is before statement", "range", *r, "nodeStart", nodeStartPos)
+			foundRange = r
 			break
 		}
-
-		line := file.Position(pos).Line
-		switch tok {
-		case token.LBRACE:
-			stack = append(stack, openBrace{line: line})
-		case token.RBRACE:
-			if len(stack) == 0 {
-				continue
-			}
-			open := stack[len(stack)-1]
-			stack = stack[:len(stack)-1]
-			braceMap[open.line] = append(braceMap[open.line], line)
+		if isBlock && r.start == nodeStartLine && r.col > e.fset.Position(block.Lbrace).Column {
+			slog.Debug("Nocov comment is after block start", "range", *r, "blockStart", e.fset.Position(block.Lbrace))
+			foundRange = r
+			break
 		}
 	}
-
-	return braceMap
-}
-
-func lineStartsBlock(line string) bool {
-	trimmed := strings.TrimSpace(line)
-	trimmed = strings.TrimSuffix(trimmed, "//nocov")
-	trimmed = strings.TrimSpace(trimmed)
-	return strings.HasSuffix(trimmed, "{")
-}
-
-func pickBlockEnd(braceMap map[int][]int, startLine int) (int, bool) {
-	ends := braceMap[startLine]
-	if len(ends) == 0 {
-		return 0, false
+	if foundRange == nil {
+		return e
 	}
 
-	end := ends[0]
-	for _, v := range ends[1:] {
-		if v > end {
-			end = v
-		}
+	expandedRange := *foundRange
+	expandedRange.expandedFrom = foundRange
+	if expandedRange.end < nodeEndLine {
+		expandedRange.end = nodeEndLine
 	}
-	return end, true
+
+	slog.Debug(fmt.Sprintf("found range is %v for node %#v [%d;%d], expanded range is %v",
+		*foundRange, node, nodeStartLine, nodeEndLine, expandedRange))
+	e.expandedRanges = append(e.expandedRanges, expandedRange)
+
+	return e
 }
 
 func shouldIgnore(entry *coverageEntry, analysis *fileAnalysis) bool {
-	if _, ok := analysis.nocovLines[entry.startLine]; ok {
-		return true
-	}
-	if entry.startLine > 1 {
-		if _, ok := analysis.nocovLines[entry.startLine-1]; ok {
-			return true
-		}
-	}
-
-	for _, block := range analysis.blocks {
-		if rangesIntersect(entry.startLine, entry.endLine, block.start, block.end) {
+	for _, r := range analysis.nocovRanges {
+		if entry.startLine >= r.start && entry.endLine <= r.end {
 			return true
 		}
 	}
 
 	return false
-}
-
-func rangesIntersect(aStart, aEnd, bStart, bEnd int) bool {
-	return aStart <= bEnd && bStart <= aEnd
 }
 
 func readLines(path string) ([]string, error) {

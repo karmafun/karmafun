@@ -1093,7 +1093,7 @@ data:
 	req.Contains(err.Error(), "multiple matches")
 }
 
-// Test using the _ field to add field option for delimiter with prefix
+// Test using the _ field to add field option for delimiter with prefix.
 func TestExtendedReplacementTransformerPlugin_Transform_DelimiterPrefix(t *testing.T) {
 	t.Parallel()
 	req := require.New(t)
@@ -1216,7 +1216,7 @@ data:
 	}
 }
 
-// Test getRefinedValue with nil options returns the value directly
+// Test getRefinedValue with nil options returns the value directly.
 func TestRefinedValue_NilOptions(t *testing.T) {
 	t.Parallel()
 	req := require.New(t)
@@ -1275,7 +1275,7 @@ data:
 	}
 }
 
-// Test setFieldValue when target is a non-scalar (mapping) node but no extensions
+// Test setFieldValue when target is a non-scalar (mapping) node but no extensions.
 func TestExtendedReplacementTransformerPlugin_Transform_NonScalarTarget(t *testing.T) {
 	t.Parallel()
 	req := require.New(t)
@@ -1335,7 +1335,7 @@ data:
 	}
 }
 
-// test using types
+// test using types.
 func TestExtendedReplacementTransformerPlugin_Types(t *testing.T) {
 	t.Parallel()
 	req := require.New(t)
