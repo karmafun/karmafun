@@ -1,3 +1,5 @@
+<!-- cSpell: words distros pacman -->
+
 # Installation
 
 ## Automatic (Linux / macOS)
