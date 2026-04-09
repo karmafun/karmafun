@@ -1,6 +1,6 @@
 package extras_test
 
-// cSpell: words karmafun bcrypt
+// cSpell: words karmafun bcrypt mypassword
 
 import (
 	"encoding/base64"

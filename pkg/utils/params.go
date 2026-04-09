@@ -37,7 +37,7 @@ const (
 // GetBaseDirectory returns the first parent directory that contains a .git directory.
 func GetBaseDirectory() (string, error) {
 	dir, err := os.Getwd()
-	if err != nil {
+	if err != nil { // nocov
 		return "", fmt.Errorf("while getting base directory: %w", err)
 	}
 	for dir != "/" {
@@ -174,7 +174,7 @@ func BindFlagValue(f *pflag.Flag, v *viper.Viper, viperName string) error {
 
 	if vi, ok := f.Value.(pflag.SliceValue); ok {
 		stringValues, err := toStringSlice(val)
-		if err != nil {
+		if err != nil { // nocov
 			slog.Error("error converting options",
 				"option", f.Name,
 				"viper_key", viperName,
@@ -299,13 +299,13 @@ func InitializeConfiguration(rootCmd *cobra.Command, v *viper.Viper) error {
 		// Search config in home directory with name ".<commandName>" (without extension).
 		v.SetConfigName("." + commandName)
 		configDirectory, err := os.UserConfigDir()
-		if err != nil {
+		if err != nil { // nocov
 			return fmt.Errorf("while getting configuration directory: %w", err)
 		}
 		v.AddConfigPath(configDirectory)
 		if baseDir, err := GetBaseDirectory(); err == nil {
 			v.AddConfigPath(baseDir) // adding current directory as first search path
-		} else {
+		} else { // nocov
 			slog.Warn("could not determine base directory for config file search, skipping", "error", err)
 		}
 	}

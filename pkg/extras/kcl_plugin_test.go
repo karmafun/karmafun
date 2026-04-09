@@ -162,7 +162,7 @@ data:
   inputKey: inputValue
 `
 	paramResourceFile := filepath.Join(tmpDir, "param-resource.yaml")
-	err = os.WriteFile(paramResourceFile, []byte(paramResourceContent), 0600)
+	err = os.WriteFile(paramResourceFile, []byte(paramResourceContent), 0o600)
 	req.NoError(err)
 
 	// Change to temp directory so loader can find the file

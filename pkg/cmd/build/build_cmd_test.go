@@ -1,6 +1,6 @@
 package build_test
 
-// cSpell: words filesys testify karmafun resmap pflag kustdir
+// cSpell: words filesys testify karmafun resmap pflag kustdir kust
 import (
 	"bytes"
 	"os"
@@ -319,7 +319,7 @@ configMapGenerator:
     literals:
       - key=value
 `
-	err = os.WriteFile(filepath.Join(tmpDir, "kustomization.yaml"), []byte(kustContent), 0600)
+	err = os.WriteFile(filepath.Join(tmpDir, "kustomization.yaml"), []byte(kustContent), 0o600)
 	req.NoError(err)
 
 	// Also create empty values and secrets files (non-existent is handled gracefully)
@@ -358,7 +358,7 @@ configMapGenerator:
     literals:
       - key=value
 `
-	err = os.WriteFile(filepath.Join(tmpDir, "kustomization.yaml"), []byte(kustContent), 0600)
+	err = os.WriteFile(filepath.Join(tmpDir, "kustomization.yaml"), []byte(kustContent), 0o600)
 	req.NoError(err)
 
 	outputDir := filepath.Join(tmpDir, "output")

@@ -1,6 +1,6 @@
 package utils_test
 
-// cSpell: words pflag myflag mysection testcmd
+// cSpell: words pflag myflag mysection testcmd testapp
 import (
 	"os"
 	"testing"

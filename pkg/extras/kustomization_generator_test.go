@@ -1,6 +1,6 @@
 package extras_test
 
-// cSpell: words karmafun kustomization
+// cSpell: words filesys kust
 
 import (
 	"os"
@@ -77,7 +77,7 @@ configMapGenerator:
     literals:
       - key=value
 `
-	err = os.WriteFile(filepath.Join(tmpDir, "kustomization.yaml"), []byte(kustomizationContent), 0600)
+	err = os.WriteFile(filepath.Join(tmpDir, "kustomization.yaml"), []byte(kustomizationContent), 0o600)
 	req.NoError(err)
 
 	plugin := extras.NewKustomizationGeneratorPlugin()

@@ -1,6 +1,6 @@
 package extras_test
 
-// cSpell: words karmafun
+// cSpell: words myrepo
 
 import (
 	"testing"

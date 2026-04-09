@@ -1,6 +1,6 @@
 package extras_test
 
-// cSpell: words karmafun sops agekey
+// cSpell: words karmafun sops agekey decryptable
 
 import (
 	"os"
@@ -111,6 +111,8 @@ func TestDecryptToRNodes_InvalidInput(t *testing.T) {
 	req.Error(err)
 }
 
+// cSpell: disable
+//
 //nolint:lll,gosec // static fixture with long encrypted values
 const testSopsEncryptedContent = `apiVersion: karmafun.dev/v1alpha1
 kind: SopsGenerator
@@ -139,6 +141,8 @@ sops:
 const testSopsAgeKey2 = `# created: 2023-01-19T19:41:45Z
 # public key: age166k86d56ejs2ydvaxv2x3vl3wajny6l52dlkncf2k58vztnlecjs0g5jqq
 AGE-SECRET-KEY-15RKTPQCCLWM7EHQ8JEP0TQLUWJAECVP7332M3ZP0RL9R7JT7MZ6SY79V8Q`
+
+// cSpell: enable
 
 func TestDecryptToRNodes_ValidEncrypted(t *testing.T) {
 	// Not parallel because it uses t.Setenv
@@ -258,6 +262,8 @@ data:
 	req.Error(err)
 }
 
+// cSpell: disable
+//
 //nolint:gosec,lll // Private sample key for testing, no security risk.
 const testSopsAgeKey = `# created: 2023-01-19T19:41:45Z
 # public key: age166k86d56ejs2ydvaxv2x3vl3wajny6l52dlkncf2k58vztnlecjs0g5jqq
@@ -285,6 +291,8 @@ sops:
     mac: ENC[AES256_GCM,data:fake,iv:fake,tag:fake,type:str]
     encrypted_regex: ^(data|stringData)$
     version: 3.9.0`
+
+// cSpell: enable
 
 func TestSopsGeneratorPlugin_Generate_WithDecryptableBuffer(t *testing.T) {
 	// Not parallel because it uses t.Setenv

@@ -42,6 +42,7 @@
     "Kustomizer",
     "kyaml",
     "mkdocs",
+    "nocov",
     "nolint",
     "pipx",
     "Prefixf",
