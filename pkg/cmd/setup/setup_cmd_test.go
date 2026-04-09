@@ -3,6 +3,7 @@ package setup_test
 // cSpell: words filesys testify karmafun
 
 import (
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -58,4 +59,22 @@ func TestNewSetupCommand_WithInMemoryFs(t *testing.T) {
 	fs := filesys.MakeFsInMemory()
 	cmd := setup.NewSetupCommand(fs)
 	req.NotNil(cmd)
+}
+
+func TestNewSetupCommand_RunE(t *testing.T) {
+	req := require.New(t)
+
+	tmpDir, err := os.MkdirTemp("", "karmafun-setup-test-")
+	req.NoError(err)
+	defer os.RemoveAll(tmpDir)
+
+	t.Setenv("KUSTOMIZE_PLUGIN_HOME", tmpDir)
+
+	fs := filesys.MakeFsOnDisk()
+	cmd := setup.NewSetupCommand(fs)
+	req.NotNil(cmd)
+
+	// Run the command (it creates the plugin directory hierarchy)
+	err = cmd.RunE(cmd, []string{})
+	req.NoError(err)
 }
