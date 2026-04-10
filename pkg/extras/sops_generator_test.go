@@ -137,7 +137,6 @@ sops:
     encrypted_regex: ^data$
     version: 3.12.1`
 
-//nolint:gosec // Private sample key for testing, no security risk.
 const testSopsAgeKey2 = `# created: 2023-01-19T19:41:45Z
 # public key: age166k86d56ejs2ydvaxv2x3vl3wajny6l52dlkncf2k58vztnlecjs0g5jqq
 AGE-SECRET-KEY-15RKTPQCCLWM7EHQ8JEP0TQLUWJAECVP7332M3ZP0RL9R7JT7MZ6SY79V8Q`

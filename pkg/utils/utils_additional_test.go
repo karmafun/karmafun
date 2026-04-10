@@ -119,8 +119,8 @@ func TestTransferAnnotations_WithLocalAndInjectLocal(t *testing.T) {
 	req := require.New(t)
 
 	configAnnotations := map[string]string{
-		utils.FunctionAnnotationLocalConfig: "true",
-		utils.FunctionAnnotationInjectLocal: "true",
+		utils.FunctionAnnotationLocalConfig: utils.TrueValue,
+		utils.FunctionAnnotationInjectLocal: utils.TrueValue,
 		utils.FunctionAnnotationKind:        "Secret",
 		utils.FunctionAnnotationApiVersion:  "v1",
 		utils.FunctionAnnotationPath:        "output.yaml",

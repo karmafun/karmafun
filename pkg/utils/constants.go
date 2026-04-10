@@ -46,4 +46,7 @@ const (
 
 	// Annotation for setting api version of in place generated resources.
 	FunctionAnnotationApiVersion = LocalConfigurationAnnotationDomain + "/apiVersion"
+
+	// TrueValue is the string value for true.
+	TrueValue = "true"
 )

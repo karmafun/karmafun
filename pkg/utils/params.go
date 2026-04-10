@@ -89,7 +89,7 @@ func SetSkipViperBindForCommand(cmd *cobra.Command, skip bool) {
 		slog.Debug("setting skip viper bind annotation for command",
 			"command", cmd.Name(),
 		)
-		cmd.Annotations[SkipViperBindAnnotation] = "true"
+		cmd.Annotations[SkipViperBindAnnotation] = TrueValue
 	} else {
 		slog.Debug("removing skip viper bind annotation for command",
 			"command", cmd.Name(),
@@ -126,7 +126,7 @@ func CmdShouldSkipViperBind(cmd *cobra.Command) bool {
 	if !ok {
 		return false
 	}
-	return val == "true"
+	return val == TrueValue
 }
 
 // SkipViperBind checks if the flag has a skip viper bind annotation.
@@ -138,7 +138,7 @@ func FlagShouldSkipViperBind(flag *pflag.Flag) bool {
 	if !ok {
 		return false
 	}
-	return val[0] == "true"
+	return val[0] == TrueValue
 }
 
 func toStringSlice(val any) ([]string, error) {

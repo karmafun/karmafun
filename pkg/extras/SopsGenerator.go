@@ -112,7 +112,7 @@ func decryptBuffer(buffer []byte, name string, format formats.Format) ([]*yaml.R
 		r.SetKind(defaultKind)
 		r.SetApiVersion(defaultApiVersion)
 
-		if err := r.PipeE(yaml.SetAnnotation(utils.FunctionAnnotationInjectLocal, "true")); err != nil {
+		if err := r.PipeE(yaml.SetAnnotation(utils.FunctionAnnotationInjectLocal, utils.TrueValue)); err != nil {
 			return nil, fmt.Errorf("while setting annotation on resource from file %s: %w", name, err)
 		}
 	}
