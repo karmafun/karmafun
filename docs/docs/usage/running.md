@@ -29,7 +29,7 @@ config.kubernetes.io/function: |
 ```yaml
 config.kubernetes.io/function: |
   container:
-    image: ghcr.io/karmafun/karmafun:v0.4.3
+    image: ghcr.io/karmafun/karmafun:{git_latest_release}
 ```
 
 No local installation is required. The `--enable-exec` flag is not needed when
@@ -60,8 +60,8 @@ my-project/
 kustomize fn run --enable-exec --fn-path functions applications
 ```
 
-`--enable-exec` is required when using the `exec` form. It is not needed for
-the container form.
+`--enable-exec` is required when using the `exec` form. It is not needed for the
+container form.
 
 ### Example: patch transformer
 
@@ -150,18 +150,17 @@ replacements:
           - spec.source.helm.parameters.[name=common.targetRevision].value
 ```
 
-!!! tip
-    Prefix function file names with numbers (`01_`, `02_`, …) to control
-    execution order. Alternatively, separate multiple functions in a single file
-    with `---` (not compatible with `kpt fn eval`).
+!!! tip Prefix function file names with numbers (`01_`, `02_`, …) to control
+execution order. Alternatively, separate multiple functions in a single file
+with `---` (not compatible with `kpt fn eval`).
 
 ---
 
 ## With `kpt fn eval`
 
 [kpt](https://kpt.dev/) applies functions one at a time using a pipeline model.
-Functions read from stdin and write to stdout, which `kpt fn source` / `kpt fn sink`
-handle for reading and writing resource files.
+Functions read from stdin and write to stdout, which `kpt fn source` /
+`kpt fn sink` handle for reading and writing resource files.
 
 **Run a single function:**
 
@@ -189,9 +188,8 @@ cat "$temp" | kpt fn sink applications
 Each function config is applied independently in order; the output of one
 becomes the input of the next.
 
-!!! note
-    When using kpt, do **not** combine multiple functions in a single file with
-    `---`. Each function config must be in its own file.
+!!! note When using kpt, do **not** combine multiple functions in a single file
+with `---`. Each function config must be in its own file.
 
 ---
 
@@ -217,5 +215,5 @@ go build -o karmafun
 ./tests/test_karmafun_kpt.sh
 ```
 
-Both scripts require `kustomize` (or `kpt`), `yq`, and the `karmafun` binary
-in the repository root.
+Both scripts require `kustomize` (or `kpt`), `yq`, and the `karmafun` binary in
+the repository root.

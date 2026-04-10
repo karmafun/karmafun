@@ -3,27 +3,30 @@
 # Argo CD integration
 
 !!! note
+
     karmafun is primarily a _pre-commit_ tool. It is designed to make structural
-    changes to configuration **before** it is committed and handed to GitOps. Use
-    it inside Argo CD only when that workflow is not possible.
+    changes to configuration **before** it is committed and handed to GitOps. Use it
+    inside Argo CD only when that workflow is not possible.
 
 ## Prerequisites
 
 To use karmafun inside Argo CD:
 
 1. Make the `karmafun` binary available inside the `argo-repo-server` pod.
-2. Configure Argo CD to pass `--enable-alpha-plugins --enable-exec` to kustomize.
+2. Configure Argo CD to pass `--enable-alpha-plugins --enable-exec` to
+   kustomize.
 
 ## Adding the binary
 
-The [Argo CD documentation](https://argo-cd.readthedocs.io/en/stable/operator-manual/custom_tools/)
+The
+[Argo CD documentation](https://argo-cd.readthedocs.io/en/stable/operator-manual/custom_tools/)
 describes several ways to install custom tools. The most robust is to build a
 custom image:
 
 ```dockerfile
 FROM argoproj/argocd:latest
 
-ARG KARMAFUN_VERSION=v0.4.3
+ARG KARMAFUN_VERSION={git_latest_release}
 
 USER root
 
@@ -67,5 +70,5 @@ Or use the container image to avoid binary installation:
 ```yaml
 config.kubernetes.io/function: |
   container:
-    image: ghcr.io/karmafun/karmafun:v0.4.3
+    image: ghcr.io/karmafun/karmafun:{git_latest_release}
 ```

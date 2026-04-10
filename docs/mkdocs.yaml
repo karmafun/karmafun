@@ -124,6 +124,9 @@ extra_css:
 extra_javascript:
   - "js/termynal.js"
 
+hooks:
+  - hooks/latest_release.py
+
 # cspell: enable
 
 ##############################################################################

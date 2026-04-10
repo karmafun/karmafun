@@ -10,10 +10,11 @@ curl -sLS https://raw.githubusercontent.com/karmafun/karmafun/main/get.sh | /bin
 
 ## Manual binary download
 
-Replace `<VERSION>` with the desired release tag (e.g. `v0.4.3`):
+Replace `<VERSION>` with the desired release tag (e.g. `{git_latest_release}`)
+and run the following commands to download the binary:
 
 ```console
-KARMAFUN_VERSION="v0.4.3"
+KARMAFUN_VERSION="{git_latest_release}"
 curl -sLo /usr/local/bin/karmafun \
   https://github.com/karmafun/karmafun/releases/download/${KARMAFUN_VERSION}/karmafun_${KARMAFUN_VERSION}_linux_amd64
 chmod +x /usr/local/bin/karmafun
@@ -43,7 +44,7 @@ Arch Linux.
     [Releases](https://github.com/karmafun/karmafun/releases) page:
 
     ```console
-    KARMAFUN_VERSION="v0.4.3"
+    KARMAFUN_VERSION="{git_latest_release}"
     ARCH=$(dpkg --print-architecture)   # amd64 or arm64
     curl -sLo karmafun.deb \
       "https://github.com/karmafun/karmafun/releases/download/${KARMAFUN_VERSION}/karmafun_${KARMAFUN_VERSION}_linux_${ARCH}.deb"
@@ -56,7 +57,7 @@ Arch Linux.
     Download and install the `.rpm` package:
 
     ```console
-    KARMAFUN_VERSION="v0.4.3"
+    KARMAFUN_VERSION="{git_latest_release}"
     ARCH=$(uname -m)                    # x86_64 or aarch64
     sudo rpm -ivh \
       "https://github.com/karmafun/karmafun/releases/download/${KARMAFUN_VERSION}/karmafun_${KARMAFUN_VERSION}_linux_${ARCH}.rpm"
@@ -67,7 +68,7 @@ Arch Linux.
     Download and install the `.pkg.tar.zst` package:
 
     ```console
-    KARMAFUN_VERSION="v0.4.3"
+    KARMAFUN_VERSION="{git_latest_release}"
     ARCH=$(uname -m)                    # x86_64 or aarch64
     curl -sLo karmafun.pkg.tar.zst \
       "https://github.com/karmafun/karmafun/releases/download/${KARMAFUN_VERSION}/karmafun_${KARMAFUN_VERSION}_linux_${ARCH}.pkg.tar.zst"
@@ -80,7 +81,7 @@ Arch Linux.
 ```yaml
 config.kubernetes.io/function: |
   container:
-    image: ghcr.io/karmafun/karmafun:v0.4.3
+    image: ghcr.io/karmafun/karmafun:{git_latest_release}
 ```
 
 Use the container image instead of the `exec` path when running in environments
