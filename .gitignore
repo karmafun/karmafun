@@ -25,3 +25,6 @@ dist/
 docs/site/
 nocov
 test.html
+
+*.pyc
+__pycache__/
