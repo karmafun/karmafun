@@ -10,6 +10,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -99,7 +100,8 @@ func main() {
 			continue
 		}
 
-		entry, err := parseCoverageEntry(lines[i], i+1)
+		var entry *coverageEntry
+		entry, err = parseCoverageEntry(lines[i], i+1)
 		if err != nil {
 			die("parse coverage profile", err)
 		}
@@ -109,7 +111,8 @@ func main() {
 			continue
 		}
 
-		sourcePath, relPath, err := resolveSourcePath(moduleName, entry.filePath)
+		var sourcePath, relPath string
+		sourcePath, relPath, err = resolveSourcePath(moduleName, entry.filePath)
 		if err != nil {
 			die("resolve source path", fmt.Errorf("line %d: %w", entry.lineNumber, err))
 		}
@@ -132,12 +135,13 @@ func main() {
 		outLines = append(outLines, lines[i])
 	}
 
-	if err := writeLines(outputPath, outLines); err != nil {
+	if err = writeLines(outputPath, outLines); err != nil {
 		die("write filtered coverage profile", err)
 	}
 
-	fmt.Printf("wrote filtered coverage profile: %s\n", outputPath)
-	printSummary(ignoredByFile, totalIgnored)
+	_, err = fmt.Fprintf(os.Stdout, "wrote filtered coverage profile: %s\n", outputPath)
+	check(err)
+	printSummary(os.Stdout, ignoredByFile, totalIgnored)
 }
 
 func readModuleName(goModPath string) (string, error) {
@@ -232,7 +236,7 @@ func buildAnalysis(sourcePath string) (*fileAnalysis, error) {
 	fset := token.NewFileSet()
 	file, err := parser.ParseFile(fset, sourcePath, nil, parser.ParseComments)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("while parsing source file %q: %w", sourcePath, err)
 	}
 
 	nocovRanges := []lineRange{}
@@ -358,7 +362,7 @@ func shouldIgnore(entry *coverageEntry, analysis *fileAnalysis) bool {
 func readLines(path string) ([]string, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("while opening file %q: %w", path, err)
 	}
 	//nolint:errcheck // Intentionally ignore error on close since we're exiting immediately after
 	defer f.Close()
@@ -369,19 +373,20 @@ func readLines(path string) ([]string, error) {
 		lines = append(lines, s.Text())
 	}
 	if err := s.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("while reading file %q: %w", path, err)
 	}
 	return lines, nil
 }
 
 func writeLines(path string, lines []string) error {
 	content := strings.Join(lines, "\n") + "\n"
-	return os.WriteFile(path, []byte(content), 0o644)
+	return os.WriteFile(path, []byte(content), 0o644) //nolint:wrapcheck // No Added Value
 }
 
-func printSummary(ignoredByFile map[string]int, totalIgnored int) {
+func printSummary(w io.Writer, ignoredByFile map[string]int, totalIgnored int) {
 	if len(ignoredByFile) == 0 {
-		fmt.Println("ignored lines: 0")
+		_, err := fmt.Fprintln(w, "ignored lines: 0")
+		check(err)
 		return
 	}
 
@@ -391,14 +396,23 @@ func printSummary(ignoredByFile map[string]int, totalIgnored int) {
 	}
 	sort.Strings(keys)
 
-	fmt.Println("ignored lines by file:")
+	_, err := fmt.Fprintln(w, "ignored lines by file:")
+	check(err)
 	for _, k := range keys {
-		fmt.Printf("  %s: %d\n", k, ignoredByFile[k])
+		_, err = fmt.Fprintf(w, "  %s: %d\n", k, ignoredByFile[k])
+		check(err)
 	}
-	fmt.Printf("total ignored lines: %d\n", totalIgnored)
+	_, err = fmt.Fprintf(w, "total ignored lines: %d\n", totalIgnored)
+	check(err)
 }
 
 func die(action string, err error) {
 	fmt.Fprintf(os.Stderr, "error: %s: %v\n", action, err)
 	os.Exit(1)
+}
+
+func check(err error) {
+	if err != nil {
+		die("fatal error", err)
+	}
 }

@@ -351,6 +351,7 @@ func TestBindFlagsToViper_BindsFlags(t *testing.T) {
 // --- InitializeConfiguration tests ---
 
 func TestInitializeConfiguration_NoConfigFile(t *testing.T) {
+	t.Parallel()
 	req := require.New(t)
 	v := viper.New()
 
@@ -362,6 +363,7 @@ func TestInitializeConfiguration_NoConfigFile(t *testing.T) {
 }
 
 func TestInitializeConfiguration_WithConfigFileFlag(t *testing.T) {
+	t.Parallel()
 	req := require.New(t)
 	v := viper.New()
 

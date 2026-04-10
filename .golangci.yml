@@ -179,6 +179,7 @@ linters:
     gomoddirectives:
       replace-allow-list:
         - kcl-lang.io/lib
+        - github.com/docker/cli
 
   exclusions:
     rules:

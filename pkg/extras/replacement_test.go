@@ -1,18 +1,120 @@
 package extras_test
 
-// cSpell: words myrepo
+// cSpell: words myrepo failf
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"sigs.k8s.io/kustomize/api/resource"
+	"sigs.k8s.io/kustomize/api/resmap"
 	"sigs.k8s.io/kustomize/api/types"
-	"sigs.k8s.io/kustomize/kyaml/yaml"
 
 	"github.com/karmafun/karmafun/pkg/extras"
 	"github.com/karmafun/karmafun/pkg/plugins"
 )
+
+const (
+	TargetConfigMapName  = "target-cm"
+	TargetConfigMapName2 = "target-cm2"
+
+	sourceCMValueYAML = `apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: source-cm
+data:
+  value: replaced-value
+`
+
+	targetCMOriginalTargetValueYAML = `apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: target-cm
+data:
+  targetValue: original-value
+`
+
+	configBasicReplacement = `
+replacements:
+  - source:
+      kind: ConfigMap
+      name: source-cm
+      fieldPath: data.value
+    targets:
+      - select:
+          kind: ConfigMap
+          name: target-cm
+        fieldPaths:
+          - data.targetValue
+`
+
+	configNilSourceFieldPath = `
+replacements:
+  - source:
+      kind: ConfigMap
+      name: source-cm
+    targets:
+      - select:
+          kind: ConfigMap
+          name: target-cm
+        fieldPaths:
+          - data.targetValue
+`
+)
+
+type transformTestCase struct {
+	assert    func(*require.Assertions, resmap.ResMap)
+	name      string
+	config    string
+	wantErr   string
+	resources []string
+}
+
+func mustConfiguredReplacementPlugin(t *testing.T, config string) resmap.TransformerPlugin {
+	t.Helper()
+	req := require.New(t)
+
+	helpers, err := plugins.NewPluginHelpers()
+	req.NoError(err)
+
+	plugin := extras.NewExtendedReplacementTransformerPlugin()
+	err = plugin.Config(helpers, []byte(config))
+	req.NoError(err)
+
+	return plugin
+}
+
+func fieldValueByName(req *require.Assertions, rm resmap.ResMap, name, fieldPath string) any {
+	for _, r := range rm.Resources() {
+		if r.GetName() == name {
+			value, err := r.GetFieldValue(fieldPath)
+			req.NoError(err)
+			return value
+		}
+	}
+
+	req.Failf("resource not found", "resource %q not found", name)
+	return nil
+}
+
+func runTransformCase(t *testing.T, tc *transformTestCase) {
+	t.Helper()
+	req := require.New(t)
+
+	plugin := mustConfiguredReplacementPlugin(t, tc.config)
+	rm := makeResMap(t, tc.resources...)
+
+	err := plugin.Transform(rm)
+	if tc.wantErr != "" {
+		req.Error(err)
+		req.Contains(err.Error(), tc.wantErr)
+		return
+	}
+
+	req.NoError(err)
+	if tc.assert != nil {
+		tc.assert(req, rm)
+	}
+}
 
 func TestNewExtendedReplacementTransformerPlugin(t *testing.T) {
 	t.Parallel()
@@ -30,20 +132,7 @@ func TestExtendedReplacementTransformerPlugin_Config(t *testing.T) {
 	req.NoError(err)
 
 	plugin := extras.NewExtendedReplacementTransformerPlugin()
-	config := []byte(`
-replacements:
-  - source:
-      kind: ConfigMap
-      name: source-cm
-      fieldPath: data.value
-    targets:
-      - select:
-          kind: ConfigMap
-          name: target-cm
-        fieldPaths:
-          - data.targetValue
-`)
-	err = plugin.Config(helpers, config)
+	err = plugin.Config(helpers, []byte(configBasicReplacement))
 	req.NoError(err)
 }
 
@@ -59,7 +148,7 @@ func TestExtendedReplacementTransformerPlugin_Config_InvalidYAML(t *testing.T) {
 	req.Error(err)
 }
 
-func TestExtendedReplacementTransformerPlugin_Transform_BasicReplacement(t *testing.T) {
+func TestExtendedReplacementTransformerPlugin_Config_ConflictPathAndInline(t *testing.T) {
 	t.Parallel()
 	req := require.New(t)
 
@@ -67,76 +156,39 @@ func TestExtendedReplacementTransformerPlugin_Transform_BasicReplacement(t *test
 	req.NoError(err)
 
 	plugin := extras.NewExtendedReplacementTransformerPlugin()
-	config := []byte(`
+	err = plugin.Config(helpers, []byte(`
 replacements:
-  - source:
+  - path: some/path
+    source:
       kind: ConfigMap
-      name: source-cm
-      fieldPath: data.value
+      name: test
     targets:
       - select:
           kind: ConfigMap
-          name: target-cm
-        fieldPaths:
-          - data.targetValue
-`)
-	err = plugin.Config(helpers, config)
+`))
+	req.Error(err)
+	req.Contains(err.Error(), "cannot specify both path and inline replacement")
+}
+
+func TestExtendedReplacementTransformerPlugin_Config_WithSourceNoField(t *testing.T) {
+	t.Parallel()
+	req := require.New(t)
+
+	helpers, err := plugins.NewPluginHelpers()
 	req.NoError(err)
 
-	sourceNode, err := yaml.Parse(`apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: source-cm
-data:
-  value: replaced-value
-`)
+	plugin := extras.NewExtendedReplacementTransformerPlugin()
+	err = plugin.Config(helpers, []byte(configNilSourceFieldPath))
 	req.NoError(err)
-
-	targetNode, err := yaml.Parse(`apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: target-cm
-data:
-  targetValue: original-value
-`)
-	req.NoError(err)
-
-	rm := makeResMap(t)
-	req.NoError(rm.Append(&resource.Resource{RNode: *sourceNode}))
-	req.NoError(rm.Append(&resource.Resource{RNode: *targetNode}))
-
-	err = plugin.Transform(rm)
-	req.NoError(err)
-
-	resources := rm.Resources()
-	var targetResource *resource.Resource
-	for _, r := range resources {
-		if r.GetName() == "target-cm" {
-			targetResource = r
-			break
-		}
-	}
-	req.NotNil(targetResource)
-
-	value, err := targetResource.GetFieldValue("data.targetValue")
-	req.NoError(err)
-	req.Equal("replaced-value", value)
 }
 
 func TestExtendedReplacementTransformerPlugin_Transform_EmptySource(t *testing.T) {
 	t.Parallel()
 	req := require.New(t)
 
-	helpers, err := plugins.NewPluginHelpers()
-	req.NoError(err)
-
-	plugin := extras.NewExtendedReplacementTransformerPlugin()
-	config := []byte(`
+	plugin := mustConfiguredReplacementPlugin(t, `
 replacements: []
 `)
-	err = plugin.Config(helpers, config)
-	req.NoError(err)
-
 	rm := makeResMap(t, `apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -145,19 +197,25 @@ data:
   key: value
 `)
 
-	err = plugin.Transform(rm)
+	err := plugin.Transform(rm)
 	req.NoError(err)
 }
 
-func TestExtendedReplacementTransformerPlugin_Transform_WithDelimiter(t *testing.T) {
+func TestExtendedReplacementTransformerPlugin_Transform_SuccessCases(t *testing.T) {
 	t.Parallel()
-	req := require.New(t)
 
-	helpers, err := plugins.NewPluginHelpers()
-	req.NoError(err)
-
-	plugin := extras.NewExtendedReplacementTransformerPlugin()
-	config := []byte(`
+	testCases := []transformTestCase{
+		{
+			name:      "basic replacement",
+			config:    configBasicReplacement,
+			resources: []string{sourceCMValueYAML, targetCMOriginalTargetValueYAML},
+			assert: func(req *require.Assertions, rm resmap.ResMap) {
+				req.Equal("replaced-value", fieldValueByName(req, rm, TargetConfigMapName, "data.targetValue"))
+			},
+		},
+		{
+			name: "source delimiter",
+			config: `
 replacements:
   - source:
       kind: ConfigMap
@@ -172,59 +230,27 @@ replacements:
           name: target-cm
         fieldPaths:
           - data.tag
-`)
-	err = plugin.Config(helpers, config)
-	req.NoError(err)
-
-	sourceNode, err := yaml.Parse(`apiVersion: v1
+`,
+			resources: []string{`apiVersion: v1
 kind: ConfigMap
 metadata:
   name: source-cm
 data:
   version: "myrepo/v1.2.3"
-`)
-	req.NoError(err)
-
-	targetNode, err := yaml.Parse(`apiVersion: v1
+`, `apiVersion: v1
 kind: ConfigMap
 metadata:
   name: target-cm
 data:
   tag: original
-`)
-	req.NoError(err)
-
-	rm := makeResMap(t)
-	req.NoError(rm.Append(&resource.Resource{RNode: *sourceNode}))
-	req.NoError(rm.Append(&resource.Resource{RNode: *targetNode}))
-
-	err = plugin.Transform(rm)
-	req.NoError(err)
-
-	resources := rm.Resources()
-	var targetResource *resource.Resource
-	for _, r := range resources {
-		if r.GetName() == "target-cm" {
-			targetResource = r
-			break
-		}
-	}
-	req.NotNil(targetResource)
-
-	value, err := targetResource.GetFieldValue("data.tag")
-	req.NoError(err)
-	req.Equal("v1.2.3", value)
-}
-
-func TestExtendedReplacementTransformerPlugin_Transform_WithEncoding(t *testing.T) {
-	t.Parallel()
-	req := require.New(t)
-
-	helpers, err := plugins.NewPluginHelpers()
-	req.NoError(err)
-
-	plugin := extras.NewExtendedReplacementTransformerPlugin()
-	config := []byte(`
+`},
+			assert: func(req *require.Assertions, rm resmap.ResMap) {
+				req.Equal("v1.2.3", fieldValueByName(req, rm, TargetConfigMapName, "data.tag"))
+			},
+		},
+		{
+			name: "source encoding",
+			config: `
 replacements:
   - source:
       kind: ConfigMap
@@ -238,110 +264,27 @@ replacements:
           name: target-cm
         fieldPaths:
           - data.hexValue
-`)
-	err = plugin.Config(helpers, config)
-	req.NoError(err)
-
-	sourceNode, err := yaml.Parse(`apiVersion: v1
+`,
+			resources: []string{`apiVersion: v1
 kind: ConfigMap
 metadata:
   name: source-cm
 data:
   value: "hello"
-`)
-	req.NoError(err)
-
-	targetNode, err := yaml.Parse(`apiVersion: v1
+`, `apiVersion: v1
 kind: ConfigMap
 metadata:
   name: target-cm
 data:
   hexValue: original
-`)
-	req.NoError(err)
-
-	rm := makeResMap(t)
-	req.NoError(rm.Append(&resource.Resource{RNode: *sourceNode}))
-	req.NoError(rm.Append(&resource.Resource{RNode: *targetNode}))
-
-	err = plugin.Transform(rm)
-	req.NoError(err)
-
-	resources := rm.Resources()
-	var targetResource *resource.Resource
-	for _, r := range resources {
-		if r.GetName() == "target-cm" {
-			targetResource = r
-			break
-		}
-	}
-	req.NotNil(targetResource)
-
-	value, err := targetResource.GetFieldValue("data.hexValue")
-	req.NoError(err)
-	req.Equal("68656c6c6f", value)
-}
-
-func TestExtendedReplacementTransformerPlugin_Config_ConflictPathAndInline(t *testing.T) {
-	t.Parallel()
-	req := require.New(t)
-
-	helpers, err := plugins.NewPluginHelpers()
-	req.NoError(err)
-
-	plugin := extras.NewExtendedReplacementTransformerPlugin()
-	config := []byte(`
-replacements:
-  - path: some/path
-    source:
-      kind: ConfigMap
-      name: test
-    targets:
-      - select:
-          kind: ConfigMap
-`)
-	err = plugin.Config(helpers, config)
-	req.Error(err)
-	req.Contains(err.Error(), "cannot specify both path and inline replacement")
-}
-
-func TestExtendedFilter_NoSourceAndNoTargets(t *testing.T) {
-	t.Parallel()
-	req := require.New(t)
-
-	helpers, err := plugins.NewPluginHelpers()
-	req.NoError(err)
-
-	plugin := extras.NewExtendedReplacementTransformerPlugin()
-	// Test with a nil source in the replacement list to trigger the filter error
-	config := []byte(`
-replacements:
-  - targets:
-      - select:
-          kind: ConfigMap
-`)
-	err = plugin.Config(helpers, config)
-	req.NoError(err)
-
-	rm := makeResMap(t, `apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: test-cm
-`)
-	err = plugin.Transform(rm)
-	req.Error(err)
-	req.Contains(err.Error(), "must specify a source")
-}
-
-func TestExtendedReplacementTransformerPlugin_Transform_WithLabelSelector(t *testing.T) {
-	t.Parallel()
-	req := require.New(t)
-
-	helpers, err := plugins.NewPluginHelpers()
-	req.NoError(err)
-
-	plugin := extras.NewExtendedReplacementTransformerPlugin()
-	config := []byte(`
+`},
+			assert: func(req *require.Assertions, rm resmap.ResMap) {
+				req.Equal("68656c6c6f", fieldValueByName(req, rm, TargetConfigMapName, "data.hexValue"))
+			},
+		},
+		{
+			name: "label selector",
+			config: `
 replacements:
   - source:
       kind: ConfigMap
@@ -353,21 +296,8 @@ replacements:
           labelSelector: "env=prod"
         fieldPaths:
           - data.targetValue
-`)
-	err = plugin.Config(helpers, config)
-	req.NoError(err)
-
-	sourceNode, err := yaml.Parse(`apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: source-cm
-data:
-  value: replaced-value
-`)
-	req.NoError(err)
-
-	// Target with matching label
-	targetNode, err := yaml.Parse(`apiVersion: v1
+`,
+			resources: []string{sourceCMValueYAML, `apiVersion: v1
 kind: ConfigMap
 metadata:
   name: target-cm
@@ -375,11 +305,7 @@ metadata:
     env: prod
 data:
   targetValue: original-value
-`)
-	req.NoError(err)
-
-	// Target without matching label (should not be replaced)
-	targetNode2, err := yaml.Parse(`apiVersion: v1
+`, `apiVersion: v1
 kind: ConfigMap
 metadata:
   name: target-cm2
@@ -387,40 +313,15 @@ metadata:
     env: dev
 data:
   targetValue: original-value
-`)
-	req.NoError(err)
-
-	rm := makeResMap(t)
-	req.NoError(rm.Append(&resource.Resource{RNode: *sourceNode}))
-	req.NoError(rm.Append(&resource.Resource{RNode: *targetNode}))
-	req.NoError(rm.Append(&resource.Resource{RNode: *targetNode2}))
-
-	err = plugin.Transform(rm)
-	req.NoError(err)
-
-	for _, r := range rm.Resources() {
-		if r.GetName() == "source-cm" {
-			continue
-		}
-		v, err2 := r.GetFieldValue("data.targetValue")
-		req.NoError(err2)
-		if r.GetName() == "target-cm" {
-			req.Equal("replaced-value", v)
-		} else if r.GetName() == "target-cm2" {
-			req.Equal("original-value", v)
-		}
-	}
-}
-
-func TestExtendedReplacementTransformerPlugin_Transform_WithCreate(t *testing.T) {
-	t.Parallel()
-	req := require.New(t)
-
-	helpers, err := plugins.NewPluginHelpers()
-	req.NoError(err)
-
-	plugin := extras.NewExtendedReplacementTransformerPlugin()
-	config := []byte(`
+`},
+			assert: func(req *require.Assertions, rm resmap.ResMap) {
+				req.Equal("replaced-value", fieldValueByName(req, rm, TargetConfigMapName, "data.targetValue"))
+				req.Equal("original-value", fieldValueByName(req, rm, TargetConfigMapName2, "data.targetValue"))
+			},
+		},
+		{
+			name: "create option",
+			config: `
 replacements:
   - source:
       kind: ConfigMap
@@ -434,53 +335,27 @@ replacements:
           - data.newField
         options:
           create: true
-`)
-	err = plugin.Config(helpers, config)
-	req.NoError(err)
-
-	sourceNode, err := yaml.Parse(`apiVersion: v1
+`,
+			resources: []string{`apiVersion: v1
 kind: ConfigMap
 metadata:
   name: source-cm
 data:
   value: created-value
-`)
-	req.NoError(err)
-
-	targetNode, err := yaml.Parse(`apiVersion: v1
+`, `apiVersion: v1
 kind: ConfigMap
 metadata:
   name: target-cm
 data:
   existingField: exists
-`)
-	req.NoError(err)
-
-	rm := makeResMap(t)
-	req.NoError(rm.Append(&resource.Resource{RNode: *sourceNode}))
-	req.NoError(rm.Append(&resource.Resource{RNode: *targetNode}))
-
-	err = plugin.Transform(rm)
-	req.NoError(err)
-
-	for _, r := range rm.Resources() {
-		if r.GetName() == "target-cm" {
-			v, err2 := r.GetFieldValue("data.newField")
-			req.NoError(err2)
-			req.Equal("created-value", v)
-		}
-	}
-}
-
-func TestExtendedReplacementTransformerPlugin_Transform_WithReject(t *testing.T) {
-	t.Parallel()
-	req := require.New(t)
-
-	helpers, err := plugins.NewPluginHelpers()
-	req.NoError(err)
-
-	plugin := extras.NewExtendedReplacementTransformerPlugin()
-	config := []byte(`
+`},
+			assert: func(req *require.Assertions, rm resmap.ResMap) {
+				req.Equal("created-value", fieldValueByName(req, rm, TargetConfigMapName, "data.newField"))
+			},
+		},
+		{
+			name: "reject selector",
+			config: `
 replacements:
   - source:
       kind: ConfigMap
@@ -493,616 +368,28 @@ replacements:
           - name: excluded-cm
         fieldPaths:
           - data.targetValue
-`)
-	err = plugin.Config(helpers, config)
-	req.NoError(err)
-
-	sourceNode, err := yaml.Parse(`apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: source-cm
-data:
-  value: replaced-value
-`)
-	req.NoError(err)
-
-	includedNode, err := yaml.Parse(`apiVersion: v1
+`,
+			resources: []string{sourceCMValueYAML, `apiVersion: v1
 kind: ConfigMap
 metadata:
   name: included-cm
 data:
   targetValue: original
-`)
-	req.NoError(err)
-
-	excludedNode, err := yaml.Parse(`apiVersion: v1
+`, `apiVersion: v1
 kind: ConfigMap
 metadata:
   name: excluded-cm
 data:
   targetValue: original
-`)
-	req.NoError(err)
-
-	rm := makeResMap(t)
-	req.NoError(rm.Append(&resource.Resource{RNode: *sourceNode}))
-	req.NoError(rm.Append(&resource.Resource{RNode: *includedNode}))
-	req.NoError(rm.Append(&resource.Resource{RNode: *excludedNode}))
-
-	err = plugin.Transform(rm)
-	req.NoError(err)
-
-	for _, r := range rm.Resources() {
-		if r.GetName() == "source-cm" {
-			continue
-		}
-		v, err2 := r.GetFieldValue("data.targetValue")
-		req.NoError(err2)
-		if r.GetName() == "included-cm" {
-			req.Equal("replaced-value", v)
-		} else if r.GetName() == "excluded-cm" {
-			req.Equal("original", v)
-		}
-	}
-}
-
-func TestExtendedReplacementTransformerPlugin_Transform_PreviousIds(t *testing.T) {
-	t.Parallel()
-	req := require.New(t)
-
-	helpers, err := plugins.NewPluginHelpers()
-	req.NoError(err)
-
-	plugin := extras.NewExtendedReplacementTransformerPlugin()
-	config := []byte(`
-replacements:
-  - source:
-      kind: ConfigMap
-      name: source-cm
-      fieldPath: data.value
-    targets:
-      - select:
-          kind: ConfigMap
-          name: target-cm
-        fieldPaths:
-          - data.targetValue
-`)
-	err = plugin.Config(helpers, config)
-	req.NoError(err)
-
-	// Source node with previousNames annotation
-	sourceNode, err := yaml.Parse(`apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: source-cm
-  annotations:
-    config.kubernetes.io/previousNames: old-source-cm
-    config.kubernetes.io/previousNamespaces: default
-    config.kubernetes.io/previousKinds: ConfigMap
-data:
-  value: replaced-value
-`)
-	req.NoError(err)
-
-	targetNode, err := yaml.Parse(`apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: target-cm
-data:
-  targetValue: original-value
-`)
-	req.NoError(err)
-
-	rm := makeResMap(t)
-	req.NoError(rm.Append(&resource.Resource{RNode: *sourceNode}))
-	req.NoError(rm.Append(&resource.Resource{RNode: *targetNode}))
-
-	err = plugin.Transform(rm)
-	req.NoError(err)
-}
-
-func TestShouldCreateField_WithWildcard(t *testing.T) {
-	t.Parallel()
-	req := require.New(t)
-
-	helpers, err := plugins.NewPluginHelpers()
-	req.NoError(err)
-
-	plugin := extras.NewExtendedReplacementTransformerPlugin()
-	// Use wildcard path with create option to trigger error
-	config := []byte(`
-replacements:
-  - source:
-      kind: ConfigMap
-      name: source-cm
-      fieldPath: data.value
-    targets:
-      - select:
-          kind: ConfigMap
-          name: target-cm
-        fieldPaths:
-          - data.*
-        options:
-          create: true
-`)
-	err = plugin.Config(helpers, config)
-	req.NoError(err)
-
-	sourceNode, err := yaml.Parse(`apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: source-cm
-data:
-  value: test-value
-`)
-	req.NoError(err)
-
-	targetNode, err := yaml.Parse(`apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: target-cm
-data:
-  existingKey: exists
-`)
-	req.NoError(err)
-
-	rm := makeResMap(t)
-	req.NoError(rm.Append(&resource.Resource{RNode: *sourceNode}))
-	req.NoError(rm.Append(&resource.Resource{RNode: *targetNode}))
-
-	err = plugin.Transform(rm)
-	req.Error(err)
-	req.Contains(err.Error(), "multi-value target")
-}
-
-func TestExtendedReplacementTransformerPlugin_Config_WithSourceNoField(t *testing.T) {
-	t.Parallel()
-	req := require.New(t)
-
-	helpers, err := plugins.NewPluginHelpers()
-	req.NoError(err)
-
-	plugin := extras.NewExtendedReplacementTransformerPlugin()
-	// Source with no fieldPath uses the default
-	config := []byte(`
-replacements:
-  - source:
-      kind: ConfigMap
-      name: source-cm
-    targets:
-      - select:
-          kind: ConfigMap
-          name: target-cm
-        fieldPaths:
-          - data.targetValue
-`)
-	err = plugin.Config(helpers, config)
-	req.NoError(err)
-}
-
-func TestExtendedReplacementTransformerPlugin_Transform_NoTargetSelector(t *testing.T) {
-	t.Parallel()
-	req := require.New(t)
-
-	helpers, err := plugins.NewPluginHelpers()
-	req.NoError(err)
-
-	plugin := extras.NewExtendedReplacementTransformerPlugin()
-	// Target with no Select
-	config := []byte(`
-replacements:
-  - source:
-      kind: ConfigMap
-      name: source-cm
-      fieldPath: data.value
-    targets:
-      - fieldPaths:
-          - data.targetValue
-`)
-	err = plugin.Config(helpers, config)
-	req.NoError(err)
-
-	sourceNode, err := yaml.Parse(`apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: source-cm
-data:
-  value: replaced-value
-`)
-	req.NoError(err)
-
-	rm := makeResMap(t)
-	req.NoError(rm.Append(&resource.Resource{RNode: *sourceNode}))
-
-	err = plugin.Transform(rm)
-	req.Error(err)
-	req.Contains(err.Error(), "target must specify resources to select")
-}
-
-func TestExtendedReplacementTransformerPlugin_Transform_DelimiterOnNonScalar(t *testing.T) {
-	t.Parallel()
-	req := require.New(t)
-
-	helpers, err := plugins.NewPluginHelpers()
-	req.NoError(err)
-
-	plugin := extras.NewExtendedReplacementTransformerPlugin()
-	// Delimiter option on source field that is not scalar
-	config := []byte(`
-replacements:
-  - source:
-      kind: ConfigMap
-      name: source-cm
-      fieldPath: data
-      options:
-        delimiter: "/"
-        index: 0
-    targets:
-      - select:
-          kind: ConfigMap
-          name: target-cm
-        fieldPaths:
-          - data.targetValue
-`)
-	err = plugin.Config(helpers, config)
-	req.NoError(err)
-
-	sourceNode, err := yaml.Parse(`apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: source-cm
-data:
-  key: value
-`)
-	req.NoError(err)
-
-	targetNode, err := yaml.Parse(`apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: target-cm
-data:
-  targetValue: original
-`)
-	req.NoError(err)
-
-	rm := makeResMap(t)
-	req.NoError(rm.Append(&resource.Resource{RNode: *sourceNode}))
-	req.NoError(rm.Append(&resource.Resource{RNode: *targetNode}))
-
-	// Delimiter on non-scalar source should error
-	err = plugin.Transform(rm)
-	req.Error(err)
-	req.Contains(err.Error(), "scalar")
-}
-
-func TestExtendedReplacementTransformerPlugin_SourceFieldPath_Missing(t *testing.T) {
-	t.Parallel()
-	req := require.New(t)
-
-	helpers, err := plugins.NewPluginHelpers()
-	req.NoError(err)
-
-	plugin := extras.NewExtendedReplacementTransformerPlugin()
-	config := []byte(`
-replacements:
-  - source:
-      kind: ConfigMap
-      name: source-cm
-      fieldPath: data.nonexistent
-    targets:
-      - select:
-          kind: ConfigMap
-          name: target-cm
-        fieldPaths:
-          - data.value
-`)
-	err = plugin.Config(helpers, config)
-	req.NoError(err)
-
-	sourceNode, err := yaml.Parse(`apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: source-cm
-data:
-  value: existing
-`)
-	req.NoError(err)
-
-	targetNode, err := yaml.Parse(`apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: target-cm
-data:
-  value: original
-`)
-	req.NoError(err)
-
-	rm := makeResMap(t)
-	req.NoError(rm.Append(&resource.Resource{RNode: *sourceNode}))
-	req.NoError(rm.Append(&resource.Resource{RNode: *targetNode}))
-
-	err = plugin.Transform(rm)
-	req.Error(err)
-	req.Contains(err.Error(), "is missing for replacement source")
-}
-
-func TestExtendedReplacementTransformerPlugin_MultipleSourcesNotFound(t *testing.T) {
-	t.Parallel()
-	req := require.New(t)
-
-	helpers, err := plugins.NewPluginHelpers()
-	req.NoError(err)
-
-	plugin := extras.NewExtendedReplacementTransformerPlugin()
-	config := []byte(`
-replacements:
-  - source:
-      kind: ConfigMap
-      name: nonexistent-source
-      fieldPath: data.value
-    targets:
-      - select:
-          kind: ConfigMap
-          name: target-cm
-        fieldPaths:
-          - data.value
-`)
-	err = plugin.Config(helpers, config)
-	req.NoError(err)
-
-	targetNode, err := yaml.Parse(`apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: target-cm
-data:
-  value: original
-`)
-	req.NoError(err)
-
-	rm := makeResMap(t)
-	req.NoError(rm.Append(&resource.Resource{RNode: *targetNode}))
-
-	err = plugin.Transform(rm)
-	req.Error(err)
-	req.Contains(err.Error(), "nothing selected")
-}
-
-func TestSetFieldValue_DelimiterWithExtension(t *testing.T) {
-	t.Parallel()
-	req := require.New(t)
-
-	helpers, err := plugins.NewPluginHelpers()
-	req.NoError(err)
-
-	// Using delimiter with an extended path should error
-	plugin := extras.NewExtendedReplacementTransformerPlugin()
-	config := []byte(`
-replacements:
-  - source:
-      kind: ConfigMap
-      name: source-cm
-      fieldPath: data.value
-    targets:
-      - select:
-          kind: ConfigMap
-          name: target-cm
-        fieldPaths:
-          - data.embedded.!!yaml.nested.key
-        options:
-          delimiter: "/"
-          index: 0
-`)
-	err = plugin.Config(helpers, config)
-	req.NoError(err)
-
-	sourceNode, err := yaml.Parse(`apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: source-cm
-data:
-  value: "hello/world"
-`)
-	req.NoError(err)
-
-	targetNode, err := yaml.Parse(`apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: target-cm
-data:
-  embedded: |
-    nested:
-      key: original
-`)
-	req.NoError(err)
-
-	rm := makeResMap(t)
-	req.NoError(rm.Append(&resource.Resource{RNode: *sourceNode}))
-	req.NoError(rm.Append(&resource.Resource{RNode: *targetNode}))
-
-	err = plugin.Transform(rm)
-	req.Error(err)
-	req.Contains(err.Error(), "delimiter option cannot be used with extensions")
-}
-
-func TestExtendedRefinedValue_DelimiterOutOfBounds(t *testing.T) {
-	t.Parallel()
-	req := require.New(t)
-
-	helpers, err := plugins.NewPluginHelpers()
-	req.NoError(err)
-
-	plugin := extras.NewExtendedReplacementTransformerPlugin()
-	config := []byte(`
-replacements:
-  - source:
-      kind: ConfigMap
-      name: source-cm
-      fieldPath: data.version
-      options:
-        delimiter: "/"
-        index: 10
-    targets:
-      - select:
-          kind: ConfigMap
-          name: target-cm
-        fieldPaths:
-          - data.tag
-`)
-	err = plugin.Config(helpers, config)
-	req.NoError(err)
-
-	sourceNode, err := yaml.Parse(`apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: source-cm
-data:
-  version: "only-one-part"
-`)
-	req.NoError(err)
-
-	targetNode, err := yaml.Parse(`apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: target-cm
-data:
-  tag: original
-`)
-	req.NoError(err)
-
-	rm := makeResMap(t)
-	req.NoError(rm.Append(&resource.Resource{RNode: *sourceNode}))
-	req.NoError(rm.Append(&resource.Resource{RNode: *targetNode}))
-
-	err = plugin.Transform(rm)
-	req.Error(err)
-	req.Contains(err.Error(), "out of bounds")
-}
-
-func TestRefinedValue_EncodingOnNonScalar(t *testing.T) {
-	t.Parallel()
-	req := require.New(t)
-
-	helpers, err := plugins.NewPluginHelpers()
-	req.NoError(err)
-
-	plugin := extras.NewExtendedReplacementTransformerPlugin()
-	// Encoding on non-scalar should fail
-	config := []byte(`
-replacements:
-  - source:
-      kind: ConfigMap
-      name: source-cm
-      fieldPath: data
-      options:
-        encoding: "base64"
-    targets:
-      - select:
-          kind: ConfigMap
-          name: target-cm
-        fieldPaths:
-          - data.targetValue
-`)
-	err = plugin.Config(helpers, config)
-	req.NoError(err)
-
-	sourceNode, err := yaml.Parse(`apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: source-cm
-data:
-  key: value
-`)
-	req.NoError(err)
-
-	targetNode, err := yaml.Parse(`apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: target-cm
-data:
-  targetValue: original
-`)
-	req.NoError(err)
-
-	rm := makeResMap(t)
-	req.NoError(rm.Append(&resource.Resource{RNode: *sourceNode}))
-	req.NoError(rm.Append(&resource.Resource{RNode: *targetNode}))
-
-	err = plugin.Transform(rm)
-	req.Error(err)
-	req.Contains(err.Error(), "scalar")
-}
-
-func TestExtendedReplacementTransformerPlugin_Transform_MultipleSourcesError(t *testing.T) {
-	t.Parallel()
-	req := require.New(t)
-
-	helpers, err := plugins.NewPluginHelpers()
-	req.NoError(err)
-
-	plugin := extras.NewExtendedReplacementTransformerPlugin()
-	config := []byte(`
-replacements:
-  - source:
-      kind: ConfigMap
-      fieldPath: data.value
-    targets:
-      - select:
-          kind: ConfigMap
-          name: target-cm
-        fieldPaths:
-          - data.targetValue
-`)
-	err = plugin.Config(helpers, config)
-	req.NoError(err)
-
-	// Multiple source candidates should cause an error
-	sourceNode1, err := yaml.Parse(`apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: source-cm1
-data:
-  value: value1
-`)
-	req.NoError(err)
-
-	sourceNode2, err := yaml.Parse(`apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: source-cm2
-data:
-  value: value2
-`)
-	req.NoError(err)
-
-	targetNode, err := yaml.Parse(`apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: target-cm
-data:
-  targetValue: original
-`)
-	req.NoError(err)
-
-	rm := makeResMap(t)
-	req.NoError(rm.Append(&resource.Resource{RNode: *sourceNode1}))
-	req.NoError(rm.Append(&resource.Resource{RNode: *sourceNode2}))
-	req.NoError(rm.Append(&resource.Resource{RNode: *targetNode}))
-
-	err = plugin.Transform(rm)
-	req.Error(err)
-	req.Contains(err.Error(), "multiple matches")
-}
-
-// Test using the _ field to add field option for delimiter with prefix.
-func TestExtendedReplacementTransformerPlugin_Transform_DelimiterPrefix(t *testing.T) {
-	t.Parallel()
-	req := require.New(t)
-
-	helpers, err := plugins.NewPluginHelpers()
-	req.NoError(err)
-
-	plugin := extras.NewExtendedReplacementTransformerPlugin()
-	config := []byte(`
+`},
+			assert: func(req *require.Assertions, rm resmap.ResMap) {
+				req.Equal("replaced-value", fieldValueByName(req, rm, "included-cm", "data.targetValue"))
+				req.Equal("original", fieldValueByName(req, rm, "excluded-cm", "data.targetValue"))
+			},
+		},
+		{
+			name: "target delimiter prefix",
+			config: `
 replacements:
   - source:
       kind: ConfigMap
@@ -1117,53 +404,27 @@ replacements:
         options:
           delimiter: "/"
           index: -1
-`)
-	err = plugin.Config(helpers, config)
-	req.NoError(err)
-
-	sourceNode, err := yaml.Parse(`apiVersion: v1
+`,
+			resources: []string{`apiVersion: v1
 kind: ConfigMap
 metadata:
   name: source-cm
 data:
   prefix: "prefix"
-`)
-	req.NoError(err)
-
-	targetNode, err := yaml.Parse(`apiVersion: v1
+`, `apiVersion: v1
 kind: ConfigMap
 metadata:
   name: target-cm
 data:
   value: "original/path"
-`)
-	req.NoError(err)
-
-	rm := makeResMap(t)
-	req.NoError(rm.Append(&resource.Resource{RNode: *sourceNode}))
-	req.NoError(rm.Append(&resource.Resource{RNode: *targetNode}))
-
-	err = plugin.Transform(rm)
-	req.NoError(err)
-
-	for _, r := range rm.Resources() {
-		if r.GetName() == "target-cm" {
-			v, err2 := r.GetFieldValue("data.value")
-			req.NoError(err2)
-			req.Equal("prefix/original/path", v)
-		}
-	}
-}
-
-func TestExtendedReplacementTransformerPlugin_Transform_DelimiterSuffix(t *testing.T) {
-	t.Parallel()
-	req := require.New(t)
-
-	helpers, err := plugins.NewPluginHelpers()
-	req.NoError(err)
-
-	plugin := extras.NewExtendedReplacementTransformerPlugin()
-	config := []byte(`
+`},
+			assert: func(req *require.Assertions, rm resmap.ResMap) {
+				req.Equal("prefix/original/path", fieldValueByName(req, rm, TargetConfigMapName, "data.value"))
+			},
+		},
+		{
+			name: "target delimiter suffix",
+			config: `
 replacements:
   - source:
       kind: ConfigMap
@@ -1178,113 +439,27 @@ replacements:
         options:
           delimiter: "/"
           index: 100
-`)
-	err = plugin.Config(helpers, config)
-	req.NoError(err)
-
-	sourceNode, err := yaml.Parse(`apiVersion: v1
+`,
+			resources: []string{`apiVersion: v1
 kind: ConfigMap
 metadata:
   name: source-cm
 data:
   suffix: "appended"
-`)
-	req.NoError(err)
-
-	targetNode, err := yaml.Parse(`apiVersion: v1
+`, `apiVersion: v1
 kind: ConfigMap
 metadata:
   name: target-cm
 data:
   value: "original/path"
-`)
-	req.NoError(err)
-
-	rm := makeResMap(t)
-	req.NoError(rm.Append(&resource.Resource{RNode: *sourceNode}))
-	req.NoError(rm.Append(&resource.Resource{RNode: *targetNode}))
-
-	err = plugin.Transform(rm)
-	req.NoError(err)
-
-	for _, r := range rm.Resources() {
-		if r.GetName() == "target-cm" {
-			v, err2 := r.GetFieldValue("data.value")
-			req.NoError(err2)
-			req.Equal("original/path/appended", v)
-		}
-	}
-}
-
-// Test getRefinedValue with nil options returns the value directly.
-func TestRefinedValue_NilOptions(t *testing.T) {
-	t.Parallel()
-	req := require.New(t)
-
-	helpers, err := plugins.NewPluginHelpers()
-	req.NoError(err)
-
-	plugin := extras.NewExtendedReplacementTransformerPlugin()
-	config := []byte(`
-replacements:
-  - source:
-      kind: ConfigMap
-      name: source-cm
-      fieldPath: data.value
-    targets:
-      - select:
-          kind: ConfigMap
-          name: target-cm
-        fieldPaths:
-          - data.targetValue
-`)
-	err = plugin.Config(helpers, config)
-	req.NoError(err)
-
-	sourceNode, err := yaml.Parse(`apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: source-cm
-data:
-  value: simple-value
-`)
-	req.NoError(err)
-
-	targetNode, err := yaml.Parse(`apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: target-cm
-data:
-  targetValue: original
-`)
-	req.NoError(err)
-
-	rm := makeResMap(t)
-	req.NoError(rm.Append(&resource.Resource{RNode: *sourceNode}))
-	req.NoError(rm.Append(&resource.Resource{RNode: *targetNode}))
-
-	err = plugin.Transform(rm)
-	req.NoError(err)
-
-	for _, r := range rm.Resources() {
-		if r.GetName() == "target-cm" {
-			v, err2 := r.GetFieldValue("data.targetValue")
-			req.NoError(err2)
-			req.Equal("simple-value", v)
-		}
-	}
-}
-
-// Test setFieldValue when target is a non-scalar (mapping) node but no extensions.
-func TestExtendedReplacementTransformerPlugin_Transform_NonScalarTarget(t *testing.T) {
-	t.Parallel()
-	req := require.New(t)
-
-	helpers, err := plugins.NewPluginHelpers()
-	req.NoError(err)
-
-	plugin := extras.NewExtendedReplacementTransformerPlugin()
-	config := []byte(`
+`},
+			assert: func(req *require.Assertions, rm resmap.ResMap) {
+				req.Equal("original/path/appended", fieldValueByName(req, rm, TargetConfigMapName, "data.value"))
+			},
+		},
+		{
+			name: "non scalar target",
+			config: `
 replacements:
   - source:
       kind: ConfigMap
@@ -1296,51 +471,359 @@ replacements:
           name: target-cm
         fieldPaths:
           - data
-`)
-	err = plugin.Config(helpers, config)
-	req.NoError(err)
-
-	sourceNode, err := yaml.Parse(`apiVersion: v1
+`,
+			resources: []string{`apiVersion: v1
 kind: ConfigMap
 metadata:
   name: source-cm
 data:
   key1: value1
   key2: value2
-`)
-	req.NoError(err)
-
-	targetNode, err := yaml.Parse(`apiVersion: v1
+`, `apiVersion: v1
 kind: ConfigMap
 metadata:
   name: target-cm
 data:
   oldKey: oldValue
-`)
-	req.NoError(err)
+`},
+			assert: func(req *require.Assertions, rm resmap.ResMap) {
+				req.Equal("value1", fieldValueByName(req, rm, TargetConfigMapName, "data.key1"))
+			},
+		},
+	}
 
-	rm := makeResMap(t)
-	req.NoError(rm.Append(&resource.Resource{RNode: *sourceNode}))
-	req.NoError(rm.Append(&resource.Resource{RNode: *targetNode}))
-
-	err = plugin.Transform(rm)
-	req.NoError(err)
-
-	for _, r := range rm.Resources() {
-		if r.GetName() == "target-cm" {
-			v, err2 := r.GetFieldValue("data.key1")
-			req.NoError(err2)
-			req.Equal("value1", v)
-		}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			runTransformCase(t, &tc)
+		})
 	}
 }
 
-// test using types.
+func TestExtendedReplacementTransformerPlugin_Transform_ErrorCases(t *testing.T) {
+	t.Parallel()
+
+	testCases := []transformTestCase{
+		{
+			name: "source missing",
+			config: `
+replacements:
+  - targets:
+      - select:
+          kind: ConfigMap
+`,
+			resources: []string{`apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: test-cm
+`},
+			wantErr: "must specify a source",
+		},
+		{
+			name: "create with wildcard target",
+			config: `
+replacements:
+  - source:
+      kind: ConfigMap
+      name: source-cm
+      fieldPath: data.value
+    targets:
+      - select:
+          kind: ConfigMap
+          name: target-cm
+        fieldPaths:
+          - data.*
+        options:
+          create: true
+`,
+			resources: []string{`apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: source-cm
+data:
+  value: test-value
+`, `apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: target-cm
+data:
+  existingKey: exists
+`},
+			wantErr: "multi-value target",
+		},
+		{
+			name: "no target selector",
+			config: `
+replacements:
+  - source:
+      kind: ConfigMap
+      name: source-cm
+      fieldPath: data.value
+    targets:
+      - fieldPaths:
+          - data.targetValue
+`,
+			resources: []string{sourceCMValueYAML},
+			wantErr:   "target must specify resources to select",
+		},
+		{
+			name: "delimiter on non scalar source",
+			config: `
+replacements:
+  - source:
+      kind: ConfigMap
+      name: source-cm
+      fieldPath: data
+      options:
+        delimiter: "/"
+        index: 0
+    targets:
+      - select:
+          kind: ConfigMap
+          name: target-cm
+        fieldPaths:
+          - data.targetValue
+`,
+			resources: []string{`apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: source-cm
+data:
+  key: value
+`, `apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: target-cm
+data:
+  targetValue: original
+`},
+			wantErr: "scalar",
+		},
+		{
+			name: "source fieldPath missing",
+			config: `
+replacements:
+  - source:
+      kind: ConfigMap
+      name: source-cm
+      fieldPath: data.nonexistent
+    targets:
+      - select:
+          kind: ConfigMap
+          name: target-cm
+        fieldPaths:
+          - data.value
+`,
+			resources: []string{`apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: source-cm
+data:
+  value: existing
+`, `apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: target-cm
+data:
+  value: original
+`},
+			wantErr: "is missing for replacement source",
+		},
+		{
+			name: "source not found",
+			config: `
+replacements:
+  - source:
+      kind: ConfigMap
+      name: nonexistent-source
+      fieldPath: data.value
+    targets:
+      - select:
+          kind: ConfigMap
+          name: target-cm
+        fieldPaths:
+          - data.value
+`,
+			resources: []string{`apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: target-cm
+data:
+  value: original
+`},
+			wantErr: "nothing selected",
+		},
+		{
+			name: "delimiter with extension path",
+			config: `
+replacements:
+  - source:
+      kind: ConfigMap
+      name: source-cm
+      fieldPath: data.value
+    targets:
+      - select:
+          kind: ConfigMap
+          name: target-cm
+        fieldPaths:
+          - data.embedded.!!yaml.nested.key
+        options:
+          delimiter: "/"
+          index: 0
+`,
+			resources: []string{`apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: source-cm
+data:
+  value: "hello/world"
+`, `apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: target-cm
+data:
+  embedded: |
+    nested:
+      key: original
+`},
+			wantErr: "delimiter option cannot be used with extensions",
+		},
+		{
+			name: "source delimiter out of bounds",
+			config: `
+replacements:
+  - source:
+      kind: ConfigMap
+      name: source-cm
+      fieldPath: data.version
+      options:
+        delimiter: "/"
+        index: 10
+    targets:
+      - select:
+          kind: ConfigMap
+          name: target-cm
+        fieldPaths:
+          - data.tag
+`,
+			resources: []string{`apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: source-cm
+data:
+  version: "only-one-part"
+`, `apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: target-cm
+data:
+  tag: original
+`},
+			wantErr: "out of bounds",
+		},
+		{
+			name: "encoding on non scalar source",
+			config: `
+replacements:
+  - source:
+      kind: ConfigMap
+      name: source-cm
+      fieldPath: data
+      options:
+        encoding: "base64"
+    targets:
+      - select:
+          kind: ConfigMap
+          name: target-cm
+        fieldPaths:
+          - data.targetValue
+`,
+			resources: []string{`apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: source-cm
+data:
+  key: value
+`, `apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: target-cm
+data:
+  targetValue: original
+`},
+			wantErr: "scalar",
+		},
+		{
+			name: "multiple source matches",
+			config: `
+replacements:
+  - source:
+      kind: ConfigMap
+      fieldPath: data.value
+    targets:
+      - select:
+          kind: ConfigMap
+          name: target-cm
+        fieldPaths:
+          - data.targetValue
+`,
+			resources: []string{`apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: source-cm1
+data:
+  value: value1
+`, `apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: source-cm2
+data:
+  value: value2
+`, `apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: target-cm
+data:
+  targetValue: original
+`},
+			wantErr: "multiple matches",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			runTransformCase(t, &tc)
+		})
+	}
+}
+
+func TestExtendedReplacementTransformerPlugin_Transform_PreviousIds(t *testing.T) {
+	t.Parallel()
+
+	tc := transformTestCase{
+		name:   "previous IDs",
+		config: configBasicReplacement,
+		resources: []string{`apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: source-cm
+  annotations:
+    config.kubernetes.io/previousNames: old-source-cm
+    config.kubernetes.io/previousNamespaces: default
+    config.kubernetes.io/previousKinds: ConfigMap
+data:
+  value: replaced-value
+`, targetCMOriginalTargetValueYAML},
+	}
+
+	runTransformCase(t, &tc)
+}
+
 func TestExtendedReplacementTransformerPlugin_Types(t *testing.T) {
 	t.Parallel()
 	req := require.New(t)
 
-	// Verify the types used in tests are accessible
 	selector := types.Selector{}
 	req.Empty(selector.Name)
 }

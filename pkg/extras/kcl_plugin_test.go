@@ -1,6 +1,6 @@
 package extras_test
 
-// cSpell: words karmafun kcl
+// cSpell: words karmafun kcl paralleltest
 
 import (
 	"os"
@@ -145,6 +145,7 @@ spec:
 	req.Equal(1, got.Size())
 }
 
+//nolint:paralleltest // This test changes working directory
 func TestKCLGeneratorPlugin_WithParamResources_LoadsParamResource(t *testing.T) {
 	// Not parallel because it changes working directory
 	req := require.New(t)
@@ -152,7 +153,7 @@ func TestKCLGeneratorPlugin_WithParamResources_LoadsParamResource(t *testing.T) 
 	// Create a temporary directory with a param resource YAML file
 	tmpDir, err := os.MkdirTemp("", "karmafun-kcl-param-")
 	req.NoError(err)
-	defer os.RemoveAll(tmpDir)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // No need in tests
 
 	paramResourceContent := `apiVersion: v1
 kind: ConfigMap

@@ -67,7 +67,7 @@ func TestKustomizationGeneratorPlugin_Generate_SimpleKustomization(t *testing.T)
 	// Create a temporary directory with a simple kustomization
 	tmpDir, err := os.MkdirTemp("", "karmafun-kust-test-")
 	req.NoError(err)
-	defer os.RemoveAll(tmpDir)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // No need in tests
 
 	// Create a kustomization.yaml that generates a simple configmap
 	kustomizationContent := `apiVersion: kustomize.config.k8s.io/v1beta1

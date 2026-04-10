@@ -307,7 +307,7 @@ func TestConcat_EarlyStop(t *testing.T) {
 	}
 
 	// Take only first 2 elements
-	var result []int
+	result := make([]int, 0, 2)
 	for v := range utils.Concat(seq1, seq2) {
 		result = append(result, v)
 		if len(result) == 2 {

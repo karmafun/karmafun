@@ -309,7 +309,7 @@ func TestNewBuildCommand_RunsAndOutputsYAML(t *testing.T) {
 	// Create a temporary directory with a real kustomization
 	tmpDir, err := os.MkdirTemp("", "karmafun-build-test-")
 	req.NoError(err)
-	defer os.RemoveAll(tmpDir)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // No need in tests
 
 	// Create a simple kustomization with a configmap
 	kustContent := `apiVersion: kustomize.config.k8s.io/v1beta1
@@ -348,7 +348,7 @@ func TestNewBuildCommand_RunsAndOutputsToDir(t *testing.T) {
 	// Create a temporary directory with a real kustomization
 	tmpDir, err := os.MkdirTemp("", "karmafun-build-test-")
 	req.NoError(err)
-	defer os.RemoveAll(tmpDir)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // No need in tests
 
 	// Create a simple kustomization with a configmap
 	kustContent := `apiVersion: kustomize.config.k8s.io/v1beta1
@@ -386,7 +386,7 @@ func TestNewBuildCommand_PostRunE(t *testing.T) {
 
 	tmpDir, err := os.MkdirTemp("", "karmafun-build-test-")
 	req.NoError(err)
-	defer os.RemoveAll(tmpDir)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // No need in tests
 
 	t.Setenv("KUSTOMIZE_PLUGIN_HOME", tmpDir)
 
@@ -404,7 +404,7 @@ func TestNewBuildCommand_RunE_InvalidKustomizationDir(t *testing.T) {
 
 	tmpDir, err := os.MkdirTemp("", "karmafun-build-test-")
 	req.NoError(err)
-	defer os.RemoveAll(tmpDir)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // No need in tests
 
 	t.Setenv("KUSTOMIZE_PLUGIN_HOME", tmpDir)
 

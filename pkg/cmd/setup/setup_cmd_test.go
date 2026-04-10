@@ -66,7 +66,7 @@ func TestNewSetupCommand_RunE(t *testing.T) {
 
 	tmpDir, err := os.MkdirTemp("", "karmafun-setup-test-")
 	req.NoError(err)
-	defer os.RemoveAll(tmpDir)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // No need in tests
 
 	t.Setenv("KUSTOMIZE_PLUGIN_HOME", tmpDir)
 
