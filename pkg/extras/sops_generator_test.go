@@ -1,6 +1,6 @@
 package extras_test
 
-// cSpell: words karmafun sops agekey decryptable
+// cSpell: words karmafun sops agekey decryptable dotenv
 
 import (
 	"os"
@@ -153,6 +153,22 @@ func TestDecryptToRNodes_ValidEncrypted(t *testing.T) {
 	req.NotEmpty(nodes)
 }
 
+func TestDecrypt_InvalidEncrypted(t *testing.T) {
+	// Not parallel because it uses t.Setenv
+	req := require.New(t)
+	t.Setenv("SOPS_AGE_KEY", testSopsAgeKey)
+	_, err := extras.Decrypt([]byte(testSopsEncryptedContent), formats.Yaml, formats.Yaml, false)
+	req.Error(err)
+}
+
+func TestDecrypt_InvalidOutFormat(t *testing.T) {
+	// Not parallel because it uses t.Setenv
+	req := require.New(t)
+	t.Setenv("SOPS_AGE_KEY", testSopsAgeKey)
+	_, err := extras.Decrypt([]byte(testSopsEncryptedContent), formats.Yaml, formats.Dotenv, true)
+	req.Error(err)
+}
+
 func TestDecrypt_ValidEncrypted(t *testing.T) {
 	// Not parallel because it uses t.Setenv
 	req := require.New(t)
@@ -230,6 +246,43 @@ files:
 	req.NoError(err)
 	req.NotNil(result)
 	req.Equal(1, result.Size())
+
+	failingConfig := []byte(`
+apiVersion: karmafun.dev/v1alpha1
+kind: SopsGenerator
+metadata:
+  name: test-sops
+files:
+  - values.yaml
+`)
+	err = plugin.Config(helpers, failingConfig)
+	req.NoError(err)
+	_, err = plugin.Generate()
+	req.Error(err)
+	req.Contains(err.Error(), "while decrypting file \"values.yaml\"")
+}
+
+func TestSopsGeneratorPlugin_Generate_WithInvalidFiles(t *testing.T) {
+	t.Parallel()
+	// Not parallel because it changes working directory
+	req := require.New(t)
+	plugin := extras.NewSopsGeneratorPlugin()
+	config := []byte(`
+apiVersion: karmafun.dev/v1alpha1
+kind: SopsGenerator
+metadata:
+  name: test-sops
+files:
+  - non-secrets.sops.yaml
+`)
+	helpers, err := plugins.NewPluginHelpers()
+	req.NoError(err)
+	err = plugin.Config(helpers, config)
+	req.NoError(err)
+
+	_, err = plugin.Generate()
+	req.Error(err)
+	req.Contains(err.Error(), "while reading manifest")
 }
 
 func TestSopsGeneratorPlugin_Generate_WithSopsBuffer(t *testing.T) {
