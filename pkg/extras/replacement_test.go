@@ -1,6 +1,6 @@
 package extras_test
 
-// cSpell: words myrepo failf
+// cSpell: words myrepo failf filesys
 
 import (
 	"testing"
@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"sigs.k8s.io/kustomize/api/resmap"
 	"sigs.k8s.io/kustomize/api/types"
+	"sigs.k8s.io/kustomize/kyaml/filesys"
 
 	"github.com/karmafun/karmafun/pkg/extras"
 	"github.com/karmafun/karmafun/pkg/plugins"
@@ -46,6 +47,10 @@ replacements:
         fieldPaths:
           - data.targetValue
 `
+	configBasicReplacementWithPath = `
+replacements:
+  - path: simple.yaml
+`
 
 	configNilSourceFieldPath = `
 replacements:
@@ -63,17 +68,21 @@ replacements:
 
 type transformTestCase struct {
 	assert    func(*require.Assertions, resmap.ResMap)
+	files     map[string]string
 	name      string
 	config    string
 	wantErr   string
 	resources []string
 }
 
-func mustConfiguredReplacementPlugin(t *testing.T, config string) resmap.TransformerPlugin {
+func mustConfiguredReplacementPlugin(t *testing.T, config string, fSys filesys.FileSystem) resmap.TransformerPlugin {
 	t.Helper()
 	req := require.New(t)
+	if fSys == nil {
+		fSys = filesys.MakeFsOnDisk()
+	}
 
-	helpers, err := plugins.NewPluginHelpers()
+	helpers, err := plugins.NewPluginHelpersInFileSystem(fSys)
 	req.NoError(err)
 
 	plugin := extras.NewExtendedReplacementTransformerPlugin()
@@ -99,8 +108,16 @@ func fieldValueByName(req *require.Assertions, rm resmap.ResMap, name, fieldPath
 func runTransformCase(t *testing.T, tc *transformTestCase) {
 	t.Helper()
 	req := require.New(t)
+	fSys := filesys.MakeFsOnDisk()
+	if tc.files != nil {
+		fSys = filesys.MakeFsInMemory()
 
-	plugin := mustConfiguredReplacementPlugin(t, tc.config)
+		for name, content := range tc.files {
+			err := fSys.WriteFile(name, []byte(content))
+			req.NoError(err)
+		}
+	}
+	plugin := mustConfiguredReplacementPlugin(t, tc.config, fSys)
 	rm := makeResMap(t, tc.resources...)
 
 	err := plugin.Transform(rm)
@@ -188,7 +205,7 @@ func TestExtendedReplacementTransformerPlugin_Transform_EmptySource(t *testing.T
 
 	plugin := mustConfiguredReplacementPlugin(t, `
 replacements: []
-`)
+`, nil)
 	rm := makeResMap(t, `apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -208,6 +225,50 @@ func TestExtendedReplacementTransformerPlugin_Transform_SuccessCases(t *testing.
 		{
 			name:      "basic replacement",
 			config:    configBasicReplacement,
+			resources: []string{sourceCMValueYAML, targetCMOriginalTargetValueYAML},
+			assert: func(req *require.Assertions, rm resmap.ResMap) {
+				req.Equal("replaced-value", fieldValueByName(req, rm, TargetConfigMapName, "data.targetValue"))
+			},
+		},
+		{
+			name:   "basic replacement with path",
+			config: configBasicReplacementWithPath,
+			files: map[string]string{
+				"simple.yaml": `
+source:
+    kind: ConfigMap
+    name: source-cm
+    fieldPath: data.value
+targets:
+    - select:
+        kind: ConfigMap
+        name: target-cm
+      fieldPaths:
+        - data.targetValue
+`,
+			},
+			resources: []string{sourceCMValueYAML, targetCMOriginalTargetValueYAML},
+			assert: func(req *require.Assertions, rm resmap.ResMap) {
+				req.Equal("replaced-value", fieldValueByName(req, rm, TargetConfigMapName, "data.targetValue"))
+			},
+		},
+		{
+			name:   "basic replacement with path and slice",
+			config: configBasicReplacementWithPath,
+			files: map[string]string{
+				"simple.yaml": `
+- source:
+    kind: ConfigMap
+    name: source-cm
+    fieldPath: data.value
+  targets:
+    - select:
+        kind: ConfigMap
+        name: target-cm
+      fieldPaths:
+        - data.targetValue
+`,
+			},
 			resources: []string{sourceCMValueYAML, targetCMOriginalTargetValueYAML},
 			assert: func(req *require.Assertions, rm resmap.ResMap) {
 				req.Equal("replaced-value", fieldValueByName(req, rm, TargetConfigMapName, "data.targetValue"))
@@ -826,4 +887,120 @@ func TestExtendedReplacementTransformerPlugin_Types(t *testing.T) {
 
 	selector := types.Selector{}
 	req.Empty(selector.Name)
+}
+
+func TestExtendedReplacementTransformerPlugin_BadPathConfiguration(t *testing.T) {
+	t.Parallel()
+	req := require.New(t)
+
+	testCases := []transformTestCase{
+		{
+			name:   "bad path",
+			config: configBasicReplacementWithPath,
+			files: map[string]string{
+				"simple2.yaml": `
+- source:
+    kind: ConfigMap
+    name: source-cm
+    fieldPath: data.value
+  targets:
+    - select:
+        kind: ConfigMap
+        name: target-cm
+      fieldPaths:
+        - data.targetValue
+`,
+			},
+			resources: []string{sourceCMValueYAML, targetCMOriginalTargetValueYAML},
+			wantErr:   "while loading replacement path",
+		},
+		{
+			name:   "bad yaml in path",
+			config: configBasicReplacementWithPath,
+			files: map[string]string{
+				"simple.yaml": `
+- source:
+kind: ConfigMap
+`,
+			},
+			resources: []string{sourceCMValueYAML, targetCMOriginalTargetValueYAML},
+			wantErr:   "while unmarshaling replacement path",
+		},
+		{
+			name:   "bad slice replacement path",
+			config: configBasicReplacementWithPath,
+			files: map[string]string{
+				"simple.yaml": `
+- source:
+    kind: ConfigMap
+    name:
+     - one
+     - two
+    fieldPath: data.value
+  targets:
+    - select:
+        kind: ConfigMap
+        name: target-cm
+      fieldPaths:
+        - data.targetValue
+`,
+			},
+			resources: []string{sourceCMValueYAML, targetCMOriginalTargetValueYAML},
+			wantErr:   "while unmarshaling slice replacement path",
+		},
+		{
+			name:   "bad simple replacement path",
+			config: configBasicReplacementWithPath,
+			files: map[string]string{
+				"simple.yaml": `
+source:
+  kind: ConfigMap
+  name:
+    - one
+    - two
+  fieldPath: data.value
+targets:
+- select:
+    kind: ConfigMap
+    name: target-cm
+  fieldPaths:
+    - data.targetValue
+`,
+			},
+			resources: []string{sourceCMValueYAML, targetCMOriginalTargetValueYAML},
+			wantErr:   "while unmarshaling simple replacement path",
+		},
+		{
+			name:   "bad yaml replacement path",
+			config: configBasicReplacementWithPath,
+			files: map[string]string{
+				"simple.yaml": "",
+			},
+			resources: []string{sourceCMValueYAML, targetCMOriginalTargetValueYAML},
+			wantErr:   "unsupported replacement type encountered",
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			fSys := filesys.MakeFsInMemory()
+
+			if tc.files != nil {
+				for name, content := range tc.files {
+					err := fSys.WriteFile(name, []byte(content))
+					req.NoError(err)
+				}
+			}
+			helpers, err := plugins.NewPluginHelpersInFileSystem(fSys)
+			req.NoError(err)
+
+			plugin := extras.NewExtendedReplacementTransformerPlugin()
+			err = plugin.Config(helpers, []byte(tc.config))
+			req.Error(err)
+			if tc.wantErr != "" {
+				req.Contains(err.Error(), tc.wantErr)
+			}
+		})
+	}
 }

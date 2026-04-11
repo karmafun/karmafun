@@ -1,6 +1,6 @@
 package plugins
 
-// cSpell: words filesys restrictor pldr gosec govet konfig
+// cSpell: words filesys restrictor pldr gosec govet konfig wrapcheck
 import (
 	"fmt"
 	"log/slog"
@@ -175,10 +175,9 @@ type FileLoader struct {
 	loadRestrictor LoadRestrictorFunc
 }
 
-func NewPluginHelpers() (*resmap.PluginHelpers, error) {
+func NewPluginHelpersInFileSystem(fSys filesys.FileSystem) (*resmap.PluginHelpers, error) {
 	depProvider := provider.NewDepProvider()
 
-	fSys := filesys.MakeFsOnDisk()
 	resmapFactory := resmap.NewFactory(depProvider.GetResourceFactory())
 	resmapFactory.RF().IncludeLocalConfigs = true
 
@@ -196,6 +195,10 @@ func NewPluginHelpers() (*resmap.PluginHelpers, error) {
 	config.HelmConfig.Enabled = true
 	config.HelmConfig.Command = "helm"
 	return resmap.NewPluginHelpers(ldr, depProvider.GetFieldValidator(), resmapFactory, config), nil
+}
+
+func NewPluginHelpers() (*resmap.PluginHelpers, error) {
+	return NewPluginHelpersInFileSystem(filesys.MakeFsOnDisk())
 }
 
 func GetPluginPath() (string, error) {

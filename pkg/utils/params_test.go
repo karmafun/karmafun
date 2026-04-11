@@ -1,6 +1,6 @@
 package utils_test
 
-// cSpell: words pflag myflag mysection testcmd testapp
+// cSpell: words pflag myflag mysection testcmd testapp paralleltest
 import (
 	"os"
 	"testing"
@@ -22,11 +22,11 @@ func TestGetBaseDirectory(t *testing.T) {
 	req.NotEmpty(dir)
 	// The returned directory should contain a .git directory.
 	_, err = os.Stat(dir + "/.git")
-	req.NoError(err, "base directory should contain a .git directory")
+	req.NoErrorf(err, "base directory %q should contain a .git directory", dir)
 }
 
+//nolint:paralleltest // This test changes the current working directory,.
 func TestGetBaseDirectory_OutsideGitRepo(t *testing.T) {
-	t.Parallel()
 	req := require.New(t)
 	// Change to a temp dir that is not inside a git repo.
 	tmpDir, err := os.MkdirTemp("", "no-git-")

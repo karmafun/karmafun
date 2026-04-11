@@ -16,8 +16,6 @@ import (
 	"sigs.k8s.io/kustomize/kyaml/resid"
 	kyaml_utils "sigs.k8s.io/kustomize/kyaml/utils"
 	"sigs.k8s.io/kustomize/kyaml/yaml"
-
-	"github.com/karmafun/karmafun/pkg/utils"
 )
 
 type extendedFilter struct {
@@ -78,10 +76,7 @@ func getReplacement(nodes []*yaml.RNode, r *types.Replacement) (*yaml.RNode, err
 func selectSourceNode(nodes []*yaml.RNode, selector *types.SourceSelector) (*yaml.RNode, error) {
 	var matches []*yaml.RNode
 	for _, n := range nodes {
-		ids, err := makeResIds(n)
-		if err != nil {
-			return nil, fmt.Errorf("error getting node IDs: %w", err)
-		}
+		ids := makeResIds(n)
 		for _, id := range ids {
 			if id.IsSelectedBy(selector.ResId) {
 				if len(matches) > 0 {
@@ -137,10 +132,7 @@ func applyReplacement(
 			selector.FieldPaths = []string{types.DefaultReplacementFieldPath}
 		}
 		for _, possibleTarget := range nodes {
-			ids, err := makeResIds(possibleTarget)
-			if err != nil {
-				return nil, err
-			}
+			ids := makeResIds(possibleTarget)
 
 			// filter targets by label and annotation selectors
 			selectByAnnoAndLabel, err := selectByAnnoAndLabel(possibleTarget, selector)
@@ -297,61 +289,10 @@ func shouldCreateField(options *types.FieldOptions, fieldPath []string) (bool, e
 	return true, nil
 }
 
-// Copied
-
 // makeResIds returns all of an RNode's current and previous Ids.
-func makeResIds(n *yaml.RNode) ([]resid.ResId, error) {
-	var result []resid.ResId
-	apiVersion := n.Field(yaml.APIVersionField)
-	var group, version string
-	if apiVersion != nil {
-		group, version = resid.ParseGroupVersion(yaml.GetValue(apiVersion.Value))
-	}
-	result = append(result, resid.NewResIdWithNamespace(
-		resid.Gvk{Group: group, Version: version, Kind: n.GetKind()}, n.GetName(), n.GetNamespace()),
-	)
-	prevIds, err := prevIds(n)
-	if err != nil {
-		return nil, err
-	}
-	result = append(result, prevIds...)
-	return result, nil
-}
-
-// prevIds returns all of an RNode's previous Ids.
-func prevIds(n *yaml.RNode) ([]resid.ResId, error) {
-	// TODO: merge previous names and namespaces into one list of
-	//     pairs on one annotation so there is no chance of error
-	annotations := n.GetAnnotations()
-	if _, ok := annotations[utils.BuildAnnotationPreviousNames]; !ok {
-		return nil, nil
-	}
-	names := strings.Split(annotations[utils.BuildAnnotationPreviousNames], ",")
-	ns := strings.Split(annotations[utils.BuildAnnotationPreviousNamespaces], ",")
-	kinds := strings.Split(annotations[utils.BuildAnnotationPreviousKinds], ",")
-	// This should never happen
-	if len(names) != len(ns) || len(names) != len(kinds) {
-		return nil, fmt.Errorf(
-			"number of previous names, " +
-				"number of previous namespaces, " +
-				"number of previous kinds not equal")
-	}
-	ids := make([]resid.ResId, len(names))
-	for i := range names {
-		meta, err := n.GetMeta()
-		if err != nil {
-			return nil, fmt.Errorf("while getting metadata: %w", err)
-		}
-		group, version := resid.ParseGroupVersion(meta.APIVersion)
-		gvk := resid.Gvk{
-			Group:   group,
-			Version: version,
-			Kind:    kinds[i],
-		}
-		ids[i] = resid.NewResIdWithNamespace(
-			gvk, names[i], ns[i])
-	}
-	return ids, nil
+func makeResIds(n *yaml.RNode) []resid.ResId {
+	res := resource.Resource{RNode: *n}
+	return append(res.PrevIds(), res.CurId())
 }
 
 // plugin
@@ -412,13 +353,13 @@ func (p *ExtendedReplacementTransformerPlugin) Config(
 			case reflect.Slice:
 				value := []types.Replacement{}
 				if err := yaml.Unmarshal(content, &value); err != nil {
-					return fmt.Errorf("while unmarshaling replacement path %s: %w", r.Path, err)
+					return fmt.Errorf("while unmarshaling slice replacement path %s: %w", r.Path, err)
 				}
 				repl = value
 			case reflect.Map:
 				value := types.Replacement{}
 				if err := yaml.Unmarshal(content, &value); err != nil {
-					return fmt.Errorf("while unmarshaling replacement path %s: %w", r.Path, err)
+					return fmt.Errorf("while unmarshaling simple replacement path %s: %w", r.Path, err)
 				}
 				repl = []types.Replacement{value}
 			default:
