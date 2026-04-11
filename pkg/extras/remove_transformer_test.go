@@ -85,6 +85,7 @@ func TestRemoveTransformerPlugin_Transform(t *testing.T) {
 		name                   string
 		config                 string
 		input                  []string
+		wantErr                string
 		expectedRemainingNames []string
 		expectedStartCount     int
 		expectedEndCount       int
@@ -187,6 +188,28 @@ metadata:
 			expectedEndCount:       2,
 			expectedRemainingNames: []string{"keep-cm", "keep-secret"},
 		},
+		{
+			name: "Error selecting target with invalid regex",
+			config: `
+targets:
+  - kind: ConfigMap
+    name: to-rem(ove
+`,
+			input: []string{
+				`apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: to-remove
+`,
+				`apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: keep-me
+`,
+			},
+			expectedStartCount: 2,
+			wantErr:            "while selecting target",
+		},
 	}
 
 	for _, tc := range testCases {
@@ -202,6 +225,11 @@ metadata:
 			req.Equal(tc.expectedStartCount, rm.Size())
 
 			err = plugin.Transform(rm)
+			if tc.wantErr != "" {
+				req.Error(err)
+				req.ErrorContains(err, tc.wantErr)
+				return
+			}
 			req.NoError(err)
 			req.Equal(tc.expectedEndCount, rm.Size())
 
