@@ -2,6 +2,8 @@ package utils_test
 
 // cSpell: words pflag myflag mysection testcmd testapp paralleltest
 import (
+	"errors"
+	"fmt"
 	"os"
 	"testing"
 
@@ -12,6 +14,15 @@ import (
 
 	"github.com/karmafun/karmafun/pkg/utils"
 )
+
+func newStringFlag(t *testing.T, name string) *pflag.Flag {
+	t.Helper()
+	flags := pflag.NewFlagSet("test", pflag.ContinueOnError)
+	flags.String(name, "", "test flag")
+	flag := flags.Lookup(name)
+	require.NotNil(t, flag)
+	return flag
+}
 
 func TestGetBaseDirectory(t *testing.T) {
 	t.Parallel()
@@ -87,6 +98,13 @@ func TestCommandConfigSection_ReturnsEmpty_WhenNoAnnotation(t *testing.T) {
 	req.Empty(utils.CommandConfigSection(cmd))
 }
 
+func TestCommandConfigSection_ReturnsEmpty_WhenAnnotationsDoNotContainSection(t *testing.T) {
+	t.Parallel()
+	req := require.New(t)
+	cmd := &cobra.Command{Use: "test", Annotations: map[string]string{"other": "value"}}
+	req.Empty(utils.CommandConfigSection(cmd))
+}
+
 // --- SetSkipViperBind tests ---
 
 func TestSetSkipViperBindForCommand_Skip(t *testing.T) {
@@ -110,6 +128,13 @@ func TestCmdShouldSkipViperBind_False_NoAnnotations(t *testing.T) {
 	t.Parallel()
 	req := require.New(t)
 	cmd := &cobra.Command{Use: "test"}
+	req.False(utils.CmdShouldSkipViperBind(cmd))
+}
+
+func TestCmdShouldSkipViperBind_False_WhenAnnotationMissing(t *testing.T) {
+	t.Parallel()
+	req := require.New(t)
+	cmd := &cobra.Command{Use: "test", Annotations: map[string]string{"other": "value"}}
 	req.False(utils.CmdShouldSkipViperBind(cmd))
 }
 
@@ -143,6 +168,14 @@ func TestFlagShouldSkipViperBind_False_NoAnnotation(t *testing.T) {
 	flags.String("myflag", "", "test flag")
 	flag := flags.Lookup("myflag")
 	req.NotNil(flag)
+	req.False(utils.FlagShouldSkipViperBind(flag))
+}
+
+func TestFlagShouldSkipViperBind_False_WhenAnnotationMissing(t *testing.T) {
+	t.Parallel()
+	req := require.New(t)
+	flag := newStringFlag(t, "myflag")
+	flag.Annotations = map[string][]string{"other": {"value"}}
 	req.False(utils.FlagShouldSkipViperBind(flag))
 }
 
@@ -212,6 +245,38 @@ func TestBindFlagValue_SliceFlag(t *testing.T) {
 	err := utils.BindFlagValue(flag, v, "my_slice")
 	req.NoError(err)
 	req.Equal("[a,b,c]", flag.Value.String())
+}
+
+func TestBindFlagValue_SliceFlag_FromEnvironmentStyleString(t *testing.T) {
+	t.Parallel()
+	req := require.New(t)
+	v := viper.New()
+	v.Set("my_slice", "a,b,c")
+
+	flags := pflag.NewFlagSet("test", pflag.ContinueOnError)
+	flags.StringSlice("my-slice", []string{}, "test slice flag")
+	flag := flags.Lookup("my-slice")
+	req.NotNil(flag)
+
+	err := utils.BindFlagValue(flag, v, "my_slice")
+	req.NoError(err)
+	req.Equal("[a,b,c]", flag.Value.String())
+}
+
+func TestBindFlagValue_SliceFlag_FromGenericSlice(t *testing.T) {
+	t.Parallel()
+	req := require.New(t)
+	v := viper.New()
+	v.Set("my_slice", []any{"a", 2, true})
+
+	flags := pflag.NewFlagSet("test", pflag.ContinueOnError)
+	flags.StringSlice("my-slice", []string{}, "test slice flag")
+	flag := flags.Lookup("my-slice")
+	req.NotNil(flag)
+
+	err := utils.BindFlagValue(flag, v, "my_slice")
+	req.NoError(err)
+	req.Equal("[a,2,true]", flag.Value.String())
 }
 
 // --- AddConfigFlag tests ---
@@ -313,6 +378,32 @@ func TestBindFlags_Recurses_Subcommands(t *testing.T) {
 	req.Equal("child-from-viper", flag.Value.String())
 }
 
+func TestBindFlags_ContinuesWhenBinderReturnsError(t *testing.T) {
+	t.Parallel()
+	req := require.New(t)
+	v := viper.New()
+
+	cmd := &cobra.Command{Use: "test"}
+	cmd.PersistentFlags().String("persistent-flag", "default", "persistent test flag")
+	cmd.Flags().String("my-flag", "default", "test flag")
+
+	called := map[string]string{}
+	binder := func(f *pflag.Flag, _ *viper.Viper, viperName string) error {
+		called[f.Name] = viperName
+		return fmt.Errorf("bind %s: %w", f.Name, errors.New("boom"))
+	}
+
+	utils.BindFlags(cmd, v, "prefix.", binder)
+
+	req.Equal(map[string]string{
+		"persistent-flag": "prefix.persistent_flag",
+		"my-flag":         "prefix.my_flag",
+	}, called)
+	flag := cmd.Flags().Lookup("my-flag")
+	req.NotNil(flag)
+	req.Equal("default", flag.Value.String())
+}
+
 // --- BindFlag tests ---
 
 func TestBindFlag_BindsPersistentFlag(t *testing.T) {
@@ -346,6 +437,22 @@ func TestBindFlagsToViper_BindsFlags(t *testing.T) {
 	// After binding, setting viper value should be accessible
 	v.Set("my_flag", "bound-value")
 	req.Equal("bound-value", v.GetString("my_flag"))
+}
+
+func TestBindFlagsToViper_BindsSubcommandFlags(t *testing.T) {
+	t.Parallel()
+	req := require.New(t)
+	v := viper.New()
+
+	rootCmd := &cobra.Command{Use: "root"}
+	childCmd := &cobra.Command{Use: "child"}
+	childCmd.Flags().String("child-flag", "default", "child flag")
+	rootCmd.AddCommand(childCmd)
+
+	utils.BindFlagsToViper(rootCmd, v)
+	v.Set("child_flag", "bound-value")
+
+	req.Equal("bound-value", v.GetString("child_flag"))
 }
 
 // --- InitializeConfiguration tests ---
@@ -389,4 +496,21 @@ func TestInitializeConfiguration_WithEnvVars(t *testing.T) {
 
 	err := utils.InitializeConfiguration(rootCmd, v)
 	req.NoError(err)
+}
+
+func TestInitializeConfiguration_LoadsConfigFileFromXDGConfigHome(t *testing.T) {
+	req := require.New(t)
+	v := viper.New()
+
+	configDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", configDir)
+	req.NoError(os.WriteFile(configDir+"/.testapp.yaml", []byte("my_flag: from-config\n"), 0o600))
+
+	rootCmd := &cobra.Command{Use: "testapp"}
+	utils.AddConfigFlag(rootCmd)
+	rootCmd.Flags().String("my-flag", "default", "test flag")
+
+	err := utils.InitializeConfiguration(rootCmd, v)
+	req.NoError(err)
+	req.Equal("from-config", rootCmd.Flags().Lookup("my-flag").Value.String())
 }
