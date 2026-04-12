@@ -31,7 +31,7 @@ func (p *RemoveTransformerPlugin) Transform(m resmap.ResMap) error {
 		}
 		for _, r := range resources {
 			err = m.Remove(r.CurId())
-			if err != nil {
+			if err != nil { // nocov - should never happen since we just selected this resource
 				return fmt.Errorf("while removing resource %s: %w", r.CurId().String(), err)
 			}
 		}

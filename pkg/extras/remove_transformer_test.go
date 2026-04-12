@@ -79,138 +79,168 @@ metadata:
 	req.Contains(err.Error(), "at least one target")
 }
 
-func TestRemoveTransformerPlugin_Transform_RemovesMatching(t *testing.T) {
+func TestRemoveTransformerPlugin_Transform(t *testing.T) {
 	t.Parallel()
-	req := require.New(t)
-
-	plugin := extras.NewRemoveTransformerPlugin()
-	config := []byte(`
+	testCases := []struct {
+		name                   string
+		config                 string
+		input                  []string
+		wantErr                string
+		expectedRemainingNames []string
+		expectedStartCount     int
+		expectedEndCount       int
+	}{
+		{
+			name: "Remove by kind and name",
+			config: `
 targets:
   - kind: ConfigMap
     name: to-remove
-`)
-	err := plugin.Config(nil, config)
-	req.NoError(err)
-
-	rm := makeResMap(t,
-		`apiVersion: v1
+`,
+			input: []string{
+				`apiVersion: v1
 kind: ConfigMap
 metadata:
   name: to-remove
 `,
-		`apiVersion: v1
+				`apiVersion: v1
 kind: ConfigMap
 metadata:
   name: keep-me
 `,
-	)
-	req.Equal(2, rm.Size())
-
-	err = plugin.Transform(rm)
-	req.NoError(err)
-	req.Equal(1, rm.Size())
-	// The remaining resource should be the one we didn't remove
-	resources := rm.Resources()
-	req.Equal("keep-me", resources[0].GetName())
-}
-
-func TestRemoveTransformerPlugin_Transform_MultipleTargets(t *testing.T) {
-	t.Parallel()
-	req := require.New(t)
-
-	plugin := extras.NewRemoveTransformerPlugin()
-	config := []byte(`
+			},
+			expectedStartCount:     2,
+			expectedEndCount:       1,
+			expectedRemainingNames: []string{"keep-me"},
+		},
+		{
+			name: "Remove by kind only",
+			config: `
+targets:
+  - kind: Secret
+`,
+			input: []string{
+				`apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: keep-cm
+`,
+				`apiVersion: v1
+kind: Secret
+metadata:
+  name: remove-secret
+`,
+			},
+			expectedStartCount:     2,
+			expectedEndCount:       1,
+			expectedRemainingNames: []string{"keep-cm"},
+		},
+		{
+			name: "Remove multiple targets",
+			config: `
 targets:
   - kind: ConfigMap
     name: remove1
   - kind: ConfigMap
     name: remove2
-`)
-	err := plugin.Config(nil, config)
-	req.NoError(err)
-
-	rm := makeResMap(t,
-		`apiVersion: v1
+`,
+			input: []string{
+				`apiVersion: v1
 kind: ConfigMap
 metadata:
   name: remove1
 `,
-		`apiVersion: v1
+				`apiVersion: v1
 kind: ConfigMap
 metadata:
   name: remove2
 `,
-		`apiVersion: v1
+				`apiVersion: v1
 kind: ConfigMap
 metadata:
   name: keep-me
 `,
-	)
-	req.Equal(3, rm.Size())
-
-	err = plugin.Transform(rm)
-	req.NoError(err)
-	req.Equal(1, rm.Size())
-}
-
-func TestRemoveTransformerPlugin_Transform_NoMatchingResources(t *testing.T) {
-	t.Parallel()
-	req := require.New(t)
-
-	plugin := extras.NewRemoveTransformerPlugin()
-	config := []byte(`
+			},
+			expectedStartCount:     3,
+			expectedEndCount:       1,
+			expectedRemainingNames: []string{"keep-me"},
+		},
+		{
+			name: "No matching resources",
+			config: `
 targets:
-  - kind: ConfigMap
-    name: nonexistent
-`)
-	err := plugin.Config(nil, config)
-	req.NoError(err)
-
-	rm := makeResMap(t, `apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: keep-me
-`)
-	req.Equal(1, rm.Size())
-
-	err = plugin.Transform(rm)
-	req.NoError(err)
-	// Nothing should be removed
-	req.Equal(1, rm.Size())
-}
-
-func TestRemoveTransformerPlugin_Transform_ByKindOnly(t *testing.T) {
-	t.Parallel()
-	req := require.New(t)
-
-	plugin := extras.NewRemoveTransformerPlugin()
-	config := []byte(`
-targets:
-  - kind: Secret
-`)
-	err := plugin.Config(nil, config)
-	req.NoError(err)
-
-	rm := makeResMap(t,
-		`apiVersion: v1
+  - kind: Deployment
+    name: non-existent
+`,
+			input: []string{
+				`apiVersion: v1
 kind: ConfigMap
 metadata:
   name: keep-cm
 `,
-		`apiVersion: v1
+				`apiVersion: v1
 kind: Secret
 metadata:
-  name: remove-secret
+  name: keep-secret
 `,
-	)
-	req.Equal(2, rm.Size())
+			},
+			expectedStartCount:     2,
+			expectedEndCount:       2,
+			expectedRemainingNames: []string{"keep-cm", "keep-secret"},
+		},
+		{
+			name: "Error selecting target with invalid regex",
+			config: `
+targets:
+  - kind: ConfigMap
+    name: to-rem(ove
+`,
+			input: []string{
+				`apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: to-remove
+`,
+				`apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: keep-me
+`,
+			},
+			expectedStartCount: 2,
+			wantErr:            "while selecting target",
+		},
+	}
 
-	err = plugin.Transform(rm)
-	req.NoError(err)
-	req.Equal(1, rm.Size())
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			req := require.New(t)
 
-	resources := rm.Resources()
-	req.Equal("keep-cm", resources[0].GetName())
+			plugin := extras.NewRemoveTransformerPlugin()
+			err := plugin.Config(nil, []byte(tc.config))
+			req.NoError(err)
+
+			rm := makeResMap(t, tc.input...)
+			req.Equal(tc.expectedStartCount, rm.Size())
+
+			err = plugin.Transform(rm)
+			if tc.wantErr != "" {
+				req.Error(err)
+				req.ErrorContains(err, tc.wantErr)
+				return
+			}
+			req.NoError(err)
+			req.Equal(tc.expectedEndCount, rm.Size())
+
+			resources := rm.Resources()
+			var remainingNames []string
+			for _, r := range resources {
+				remainingNames = append(remainingNames, r.GetName())
+			}
+			req.ElementsMatch(tc.expectedRemainingNames, remainingNames)
+		})
+	}
 }
 
 func TestRemoveTransformerPlugin_Config_WithSelector(t *testing.T) {

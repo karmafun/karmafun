@@ -1,6 +1,6 @@
 package extras_test
 
-// cSpell: words karmafun sops agekey decryptable
+// cSpell: words karmafun sops agekey decryptable dotenv
 
 import (
 	"os"
@@ -113,7 +113,7 @@ func TestDecryptToRNodes_InvalidInput(t *testing.T) {
 
 // cSpell: disable
 //
-//nolint:lll,gosec // static fixture with long encrypted values
+//nolint:lll // static fixture with long encrypted values
 const testSopsEncryptedContent = `apiVersion: karmafun.dev/v1alpha1
 kind: SopsGenerator
 metadata:
@@ -137,8 +137,7 @@ sops:
     encrypted_regex: ^data$
     version: 3.12.1`
 
-//nolint:gosec // Private sample key for testing, no security risk.
-const testSopsAgeKey2 = `# created: 2023-01-19T19:41:45Z
+const testSopsAgeKey = `# created: 2023-01-19T19:41:45Z
 # public key: age166k86d56ejs2ydvaxv2x3vl3wajny6l52dlkncf2k58vztnlecjs0g5jqq
 AGE-SECRET-KEY-15RKTPQCCLWM7EHQ8JEP0TQLUWJAECVP7332M3ZP0RL9R7JT7MZ6SY79V8Q`
 
@@ -147,17 +146,33 @@ AGE-SECRET-KEY-15RKTPQCCLWM7EHQ8JEP0TQLUWJAECVP7332M3ZP0RL9R7JT7MZ6SY79V8Q`
 func TestDecryptToRNodes_ValidEncrypted(t *testing.T) {
 	// Not parallel because it uses t.Setenv
 	req := require.New(t)
-	t.Setenv("SOPS_AGE_KEY", testSopsAgeKey2)
+	t.Setenv("SOPS_AGE_KEY", testSopsAgeKey)
 
 	nodes, err := extras.DecryptToRNodes([]byte(testSopsEncryptedContent), formats.Yaml, true)
 	req.NoError(err)
 	req.NotEmpty(nodes)
 }
 
+func TestDecrypt_InvalidEncrypted(t *testing.T) {
+	// Not parallel because it uses t.Setenv
+	req := require.New(t)
+	t.Setenv("SOPS_AGE_KEY", testSopsAgeKey)
+	_, err := extras.Decrypt([]byte(testSopsEncryptedContent), formats.Yaml, formats.Yaml, false)
+	req.Error(err)
+}
+
+func TestDecrypt_InvalidOutFormat(t *testing.T) {
+	// Not parallel because it uses t.Setenv
+	req := require.New(t)
+	t.Setenv("SOPS_AGE_KEY", testSopsAgeKey)
+	_, err := extras.Decrypt([]byte(testSopsEncryptedContent), formats.Yaml, formats.Dotenv, true)
+	req.Error(err)
+}
+
 func TestDecrypt_ValidEncrypted(t *testing.T) {
 	// Not parallel because it uses t.Setenv
 	req := require.New(t)
-	t.Setenv("SOPS_AGE_KEY", testSopsAgeKey2)
+	t.Setenv("SOPS_AGE_KEY", testSopsAgeKey)
 
 	result, err := extras.Decrypt([]byte(testSopsEncryptedContent), formats.Yaml, formats.Yaml, true)
 	req.NoError(err)
@@ -167,7 +182,7 @@ func TestDecrypt_ValidEncrypted(t *testing.T) {
 func TestSopsGeneratorPlugin_Generate_WithRealEncryptedContent(t *testing.T) {
 	// Not parallel because it uses t.Setenv
 	req := require.New(t)
-	t.Setenv("SOPS_AGE_KEY", testSopsAgeKey2)
+	t.Setenv("SOPS_AGE_KEY", testSopsAgeKey)
 
 	helpers, err := plugins.NewPluginHelpers()
 	req.NoError(err)
@@ -185,7 +200,7 @@ func TestSopsGeneratorPlugin_Generate_WithRealEncryptedContent(t *testing.T) {
 func TestSopsGeneratorPlugin_Generate_WithFiles(t *testing.T) {
 	// Not parallel because it uses t.Setenv and changes working directory
 	req := require.New(t)
-	t.Setenv("SOPS_AGE_KEY", testSopsAgeKey2)
+	t.Setenv("SOPS_AGE_KEY", testSopsAgeKey)
 
 	// Use the actual sample encrypted file from the repo
 	// From pkg/extras, samples is 2 levels up
@@ -231,6 +246,43 @@ files:
 	req.NoError(err)
 	req.NotNil(result)
 	req.Equal(1, result.Size())
+
+	failingConfig := []byte(`
+apiVersion: karmafun.dev/v1alpha1
+kind: SopsGenerator
+metadata:
+  name: test-sops
+files:
+  - values.yaml
+`)
+	err = plugin.Config(helpers, failingConfig)
+	req.NoError(err)
+	_, err = plugin.Generate()
+	req.Error(err)
+	req.Contains(err.Error(), "while decrypting file \"values.yaml\"")
+}
+
+func TestSopsGeneratorPlugin_Generate_WithInvalidFiles(t *testing.T) {
+	t.Parallel()
+	// Not parallel because it changes working directory
+	req := require.New(t)
+	plugin := extras.NewSopsGeneratorPlugin()
+	config := []byte(`
+apiVersion: karmafun.dev/v1alpha1
+kind: SopsGenerator
+metadata:
+  name: test-sops
+files:
+  - non-secrets.sops.yaml
+`)
+	helpers, err := plugins.NewPluginHelpers()
+	req.NoError(err)
+	err = plugin.Config(helpers, config)
+	req.NoError(err)
+
+	_, err = plugin.Generate()
+	req.Error(err)
+	req.Contains(err.Error(), "while reading manifest")
 }
 
 func TestSopsGeneratorPlugin_Generate_WithSopsBuffer(t *testing.T) {
@@ -262,38 +314,6 @@ data:
 	req.Error(err)
 }
 
-// cSpell: disable
-//
-//nolint:gosec,lll // Private sample key for testing, no security risk.
-const testSopsAgeKey = `# created: 2023-01-19T19:41:45Z
-# public key: age166k86d56ejs2ydvaxv2x3vl3wajny6l52dlkncf2k58vztnlecjs0g5jqq
-AGE-SECRET-KEY-15RKTPQCCLWM7EHQ8JEP0TQLUWJAECVP7332M3ZP0RL9R7JT7MZ6SY79V8Q`
-
-//nolint:lll // encrypted test fixture
-const testSopsEncryptedYAML = `apiVersion: karmafun.dev/v1alpha1
-kind: SopsGenerator
-metadata:
-    name: test-secret
-data:
-    key: ENC[AES256_GCM,data:c3BvtqU=,iv:LRr9KPBLMaB0v3MidPBkVCa01X2LPVB4wgibFhVOVAQ=,tag:WL4RGAy4n5aGwrMGjxUKdQ==,type:str]
-sops:
-    age:
-        - recipient: age166k86d56ejs2ydvaxv2x3vl3wajny6l52dlkncf2k58vztnlecjs0g5jqq
-          enc: |
-            -----BEGIN AGE ENCRYPTED FILE-----
-            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBVN0lmWEJaaWxpa1k4dkho
-            R1ZycnFSRkpHTjEwU0FFZ3NCN1cwS1lTTkk0Cm9ZMWpvY1VLa1lUL3ZXN01yQUlz
-            N0VMaDkzZVlrbVovYTlJSnlMeThnSFkKLS0tIDAvMnVmTUZ4SThGU3lFNzVjYXBR
-            N0NYMGJQeE9PTFR0enFwWTZOcmMKKXGUfAEVwlJw+fGH4aWh/r2v3sBEMGCaTTMH
-            W+RWwcG2xOZiQPXYjBrqx7mFHQ55bKXDN7O89l8P3M/K6Q==
-            -----END AGE ENCRYPTED FILE-----
-    lastmodified: "2026-04-09T00:00:00Z"
-    mac: ENC[AES256_GCM,data:fake,iv:fake,tag:fake,type:str]
-    encrypted_regex: ^(data|stringData)$
-    version: 3.9.0`
-
-// cSpell: enable
-
 func TestSopsGeneratorPlugin_Generate_WithDecryptableBuffer(t *testing.T) {
 	// Not parallel because it uses t.Setenv
 	req := require.New(t)
@@ -304,7 +324,7 @@ func TestSopsGeneratorPlugin_Generate_WithDecryptableBuffer(t *testing.T) {
 	t.Setenv("SOPS_AGE_KEY", testSopsAgeKey)
 
 	plugin := extras.NewSopsGeneratorPlugin()
-	err = plugin.Config(helpers, []byte(testSopsEncryptedYAML))
+	err = plugin.Config(helpers, []byte(testSopsEncryptedContent))
 	req.NoError(err)
 
 	// Generate - this may or may not succeed depending on the key validity

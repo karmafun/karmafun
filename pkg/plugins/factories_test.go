@@ -1,6 +1,6 @@
 package plugins_test
 
-// cSpell: words filesys testdir karmafun
+// cSpell: words filesys testdir paralleltest
 
 import (
 	"os"
@@ -183,7 +183,7 @@ func TestGetPluginPath_WithEnvVar(t *testing.T) {
 
 	tmpDir, err := os.MkdirTemp("", "karmafun-test-")
 	req.NoError(err)
-	defer os.RemoveAll(tmpDir)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // No need in tests
 
 	t.Setenv("KUSTOMIZE_PLUGIN_HOME", tmpDir)
 
@@ -208,7 +208,7 @@ func TestRemovePluginDirectoryHierarchy_NotExist(t *testing.T) {
 
 	tmpDir, err := os.MkdirTemp("", "karmafun-test-")
 	req.NoError(err)
-	defer os.RemoveAll(tmpDir)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // No need in tests
 
 	t.Setenv("KUSTOMIZE_PLUGIN_HOME", tmpDir)
 
@@ -223,7 +223,7 @@ func TestCreateAndRemovePluginDirectoryHierarchy(t *testing.T) {
 
 	tmpDir, err := os.MkdirTemp("", "karmafun-test-")
 	req.NoError(err)
-	defer os.RemoveAll(tmpDir)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // No need in tests
 
 	t.Setenv("KUSTOMIZE_PLUGIN_HOME", tmpDir)
 
@@ -253,6 +253,7 @@ func TestRestrictionNone(t *testing.T) {
 	req.Equal("/some/path", result)
 }
 
+//nolint:paralleltest // This test changes environment variables
 func TestNewPluginHelpers_CheckLoader(t *testing.T) {
 	// Note: Not parallel since this test changes the process working directory.
 	req := require.New(t)

@@ -3,6 +3,7 @@ package build_test
 // cSpell: words filesys testify karmafun resmap pflag kustdir kust
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -14,6 +15,20 @@ import (
 
 	"github.com/karmafun/karmafun/pkg/cmd/build"
 )
+
+const kustContent = `apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+configMapGenerator:
+  - name: test-config
+    literals:
+      - key=value
+`
+
+type errWriter struct{}
+
+func (w errWriter) Write(_ []byte) (int, error) {
+	return 0, errors.New("write failed")
+}
 
 // --- NewBuildOptions tests ---
 
@@ -275,6 +290,20 @@ func TestSplitResMapToDir_EmptyResMap(t *testing.T) {
 	req.True(fs.IsDir("/output"), "output directory should be created even for empty resmap")
 }
 
+func TestSplitResMapToDir_ReturnsErrorWhenDestinationCannotBeCreated(t *testing.T) {
+	t.Parallel()
+	req := require.New(t)
+	fs := filesys.MakeFsInMemory()
+	rm := makeTestResMap(t)
+
+	err := fs.WriteFile("/output", []byte("file blocks dir creation"))
+	req.NoError(err)
+
+	err = build.SplitResMapToDir(fs, rm, "/output/child")
+	req.Error(err)
+	req.Contains(err.Error(), "failed to create directory")
+}
+
 // --- Build command output tests ---
 
 func TestNewBuildCommand_OutputsYAML(t *testing.T) {
@@ -309,16 +338,9 @@ func TestNewBuildCommand_RunsAndOutputsYAML(t *testing.T) {
 	// Create a temporary directory with a real kustomization
 	tmpDir, err := os.MkdirTemp("", "karmafun-build-test-")
 	req.NoError(err)
-	defer os.RemoveAll(tmpDir)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // No need in tests
 
 	// Create a simple kustomization with a configmap
-	kustContent := `apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-configMapGenerator:
-  - name: test-config
-    literals:
-      - key=value
-`
 	err = os.WriteFile(filepath.Join(tmpDir, "kustomization.yaml"), []byte(kustContent), 0o600)
 	req.NoError(err)
 
@@ -348,16 +370,9 @@ func TestNewBuildCommand_RunsAndOutputsToDir(t *testing.T) {
 	// Create a temporary directory with a real kustomization
 	tmpDir, err := os.MkdirTemp("", "karmafun-build-test-")
 	req.NoError(err)
-	defer os.RemoveAll(tmpDir)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // No need in tests
 
 	// Create a simple kustomization with a configmap
-	kustContent := `apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-configMapGenerator:
-  - name: test-config
-    literals:
-      - key=value
-`
 	err = os.WriteFile(filepath.Join(tmpDir, "kustomization.yaml"), []byte(kustContent), 0o600)
 	req.NoError(err)
 
@@ -386,7 +401,7 @@ func TestNewBuildCommand_PostRunE(t *testing.T) {
 
 	tmpDir, err := os.MkdirTemp("", "karmafun-build-test-")
 	req.NoError(err)
-	defer os.RemoveAll(tmpDir)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // No need in tests
 
 	t.Setenv("KUSTOMIZE_PLUGIN_HOME", tmpDir)
 
@@ -404,7 +419,7 @@ func TestNewBuildCommand_RunE_InvalidKustomizationDir(t *testing.T) {
 
 	tmpDir, err := os.MkdirTemp("", "karmafun-build-test-")
 	req.NoError(err)
-	defer os.RemoveAll(tmpDir)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // No need in tests
 
 	t.Setenv("KUSTOMIZE_PLUGIN_HOME", tmpDir)
 
@@ -414,4 +429,57 @@ func TestNewBuildCommand_RunE_InvalidKustomizationDir(t *testing.T) {
 	// Try to run with a directory that has no kustomization.yaml
 	err = cmd.RunE(cmd, []string{tmpDir})
 	req.Error(err)
+}
+
+func TestNewBuildCommand_RunE_ReturnsOutputWriteError(t *testing.T) {
+	req := require.New(t)
+
+	tmpDir, err := os.MkdirTemp("", "karmafun-build-test-")
+	req.NoError(err)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // No need in tests
+
+	err = os.WriteFile(filepath.Join(tmpDir, "kustomization.yaml"), []byte(kustContent), 0o600)
+	req.NoError(err)
+
+	t.Setenv("KUSTOMIZE_PLUGIN_HOME", tmpDir)
+
+	buildOpts := build.NewBuildOptions()
+	buildOpts.ValuesFile = filepath.Join(tmpDir, "nonexistent-values.yaml")
+	buildOpts.SecretsFile = filepath.Join(tmpDir, "nonexistent-secrets.yaml")
+
+	cmd := build.NewBuildCommand(buildOpts, nil)
+	cmd.SetOut(errWriter{})
+
+	err = cmd.RunE(cmd, []string{tmpDir})
+	req.Error(err)
+	req.Contains(err.Error(), "while writing output")
+	req.Contains(err.Error(), "write failed")
+}
+
+func TestNewBuildCommand_RunE_ReturnsSplitError(t *testing.T) {
+	req := require.New(t)
+
+	tmpDir, err := os.MkdirTemp("", "karmafun-build-test-")
+	req.NoError(err)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // No need in tests
+
+	err = os.WriteFile(filepath.Join(tmpDir, "kustomization.yaml"), []byte(kustContent), 0o600)
+	req.NoError(err)
+
+	blockedPath := filepath.Join(tmpDir, "output")
+	err = os.WriteFile(blockedPath, []byte("file blocks nested output dir"), 0o600)
+	req.NoError(err)
+
+	t.Setenv("KUSTOMIZE_PLUGIN_HOME", tmpDir)
+
+	buildOpts := build.NewBuildOptions()
+	buildOpts.ValuesFile = filepath.Join(tmpDir, "nonexistent-values.yaml")
+	buildOpts.SecretsFile = filepath.Join(tmpDir, "nonexistent-secrets.yaml")
+	buildOpts.OutputDirectory = filepath.Join(blockedPath, "child")
+
+	cmd := build.NewBuildCommand(buildOpts, nil)
+
+	err = cmd.RunE(cmd, []string{tmpDir})
+	req.Error(err)
+	req.Contains(err.Error(), "while splitting resources to directory")
 }

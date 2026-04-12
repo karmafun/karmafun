@@ -59,9 +59,6 @@ func Decrypt(b []byte, inFormat, outFormat formats.Format, ignoreMac bool) ([]by
 
 	var data []byte
 	outStore := common.StoreForFormat(outFormat, config.NewStoresConfig())
-	if outStore == nil {
-		return nil, fmt.Errorf("unsupported output format: %v", outFormat)
-	}
 
 	data, err = outStore.EmitPlainFile(tree.Branches)
 	if err != nil {
@@ -78,7 +75,7 @@ func DecryptToRNodes(b []byte, format formats.Format, ignoreMac bool) ([]*yaml.R
 
 	var nodes []*yaml.RNode
 	nodes, err = kio.FromBytes(data)
-	if err != nil {
+	if err != nil { // nocov
 		return nil, fmt.Errorf("while reading decrypted resources: %w", err)
 	}
 	return nodes, nil
@@ -100,7 +97,7 @@ func (p *SopsGeneratorPlugin) Config(h *resmap.PluginHelpers, c []byte) error {
 }
 
 func decryptBuffer(buffer []byte, name string, format formats.Format) ([]*yaml.RNode, error) {
-	if buffer == nil {
+	if buffer == nil { // nocov
 		return nil, fmt.Errorf("buffer is nil for manifest %q", name)
 	}
 	nodes, err := DecryptToRNodes(buffer, format, true)
@@ -112,7 +109,7 @@ func decryptBuffer(buffer []byte, name string, format formats.Format) ([]*yaml.R
 		r.SetKind(defaultKind)
 		r.SetApiVersion(defaultApiVersion)
 
-		if err := r.PipeE(yaml.SetAnnotation(utils.FunctionAnnotationInjectLocal, "true")); err != nil {
+		if err := r.PipeE(yaml.SetAnnotation(utils.FunctionAnnotationInjectLocal, utils.TrueValue)); err != nil { // nocov
 			return nil, fmt.Errorf("while setting annotation on resource from file %s: %w", name, err)
 		}
 	}

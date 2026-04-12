@@ -74,7 +74,7 @@ func GeAnnotationProperties(annotations map[string]string, config bool) *Annotat
 			properties.Index = -1
 		}
 	}
-	properties.InjectLocal = annotations[FunctionAnnotationInjectLocal] == "true"
+	properties.InjectLocal = annotations[FunctionAnnotationInjectLocal] == TrueValue
 	properties.Kind = annotations[FunctionAnnotationKind]
 	properties.ApiVersion = annotations[FunctionAnnotationApiVersion]
 	return &properties
@@ -86,7 +86,7 @@ func TransferAnnotationsToNode(r *yaml.RNode, configProperties *AnnotationProper
 	properties := GeAnnotationProperties(annotations, false)
 
 	if configProperties.Local {
-		annotations[FunctionAnnotationLocalConfig] = "true"
+		annotations[FunctionAnnotationLocalConfig] = TrueValue
 	}
 
 	actualPath := configProperties.Path

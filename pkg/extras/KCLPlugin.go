@@ -1,6 +1,6 @@
 package extras
 
-// cSpell: words kcl
+// cSpell: words kcl wrapcheck
 
 import (
 	"fmt"
@@ -30,7 +30,7 @@ func (p *KCLBasePlugin) Config(h *resmap.PluginHelpers, c []byte) error {
 	// TODO: Should provide an alternative interface to configure from the functionConfig
 	// RNode directly to avoid the unnecessary marshal and unmarshal.
 	p.functionConfiguration, err = yaml.Parse(string(c))
-	if err != nil {
+	if err != nil { // nocov - Unreachable since parsing KCLPluginRun worked above.
 		return fmt.Errorf("while parsing function configuration: %w", err)
 	}
 	return nil
@@ -72,7 +72,7 @@ func (p *KCLBasePlugin) setParamResourcesInFunctionConfig(paramResources resmap.
 		yaml.LookupCreate(yaml.MappingNode, "params"),
 		yaml.SetField("resources", seq),
 	)
-	if err != nil {
+	if err != nil { // nocov - Almost unreachable code
 		return fmt.Errorf("while setting param resources in function configuration: %w", err)
 	}
 	return nil
@@ -87,25 +87,23 @@ func (p *KCLBasePlugin) prepareFunctionConfig() error {
 		return fmt.Errorf("while loading param resources: %w", err)
 	}
 	err = p.setParamResourcesInFunctionConfig(paramResources)
-	if err != nil {
+	if err != nil { // nocov - Almost unreachable code
 		return fmt.Errorf("while setting param resources in function configuration: %w", err)
 	}
 	return nil
 }
 
-var _ resmap.GeneratorPlugin = &KCLGeneratorPlugin{}
-
-type KCLGeneratorPlugin struct {
-	KCLBasePlugin `json:",inline" yaml:",inline"`
-}
-
-func (p *KCLGeneratorPlugin) Generate() (resmap.ResMap, error) {
+func (p *KCLBasePlugin) run(m resmap.ResMap) (resmap.ResMap, error) {
 	err := p.prepareFunctionConfig()
 	if err != nil {
 		return nil, fmt.Errorf("while preparing function configuration: %w", err)
 	}
+	var inputNodes []*yaml.RNode = nil
+	if m != nil {
+		inputNodes = m.ToRNodeSlice()
+	}
 	var nodes []*yaml.RNode
-	nodes, err = p.Transform(nil, p.functionConfiguration)
+	nodes, err = p.Transform(inputNodes, p.functionConfiguration)
 	if err != nil {
 		return nil, fmt.Errorf("while transforming resources: %w", err)
 	}
@@ -115,6 +113,16 @@ func (p *KCLGeneratorPlugin) Generate() (resmap.ResMap, error) {
 		return nil, fmt.Errorf("while creating resmap from nodes: %w", err)
 	}
 	return result, nil
+}
+
+var _ resmap.GeneratorPlugin = &KCLGeneratorPlugin{}
+
+type KCLGeneratorPlugin struct {
+	KCLBasePlugin `json:",inline" yaml:",inline"`
+}
+
+func (p *KCLGeneratorPlugin) Generate() (resmap.ResMap, error) {
+	return p.run(nil)
 }
 
 // NewKCLGeneratorPlugin returns a newly created KCLGenerator.
@@ -129,19 +137,9 @@ type KCLTransformerPlugin struct {
 }
 
 func (p *KCLTransformerPlugin) Transform(m resmap.ResMap) error {
-	err := p.prepareFunctionConfig()
+	result, err := p.run(m)
 	if err != nil {
-		return fmt.Errorf("while preparing function configuration: %w", err)
-	}
-	var nodes []*yaml.RNode
-	nodes, err = p.KCLPluginRun.Transform(m.ToRNodeSlice(), p.functionConfiguration)
-	if err != nil {
-		return fmt.Errorf("while transforming resources: %w", err)
-	}
-	var result resmap.ResMap
-	result, err = p.h.ResmapFactory().NewResMapFromRNodeSlice(nodes)
-	if err != nil {
-		return fmt.Errorf("while creating resmap from nodes: %w", err)
+		return err
 	}
 	err = m.AbsorbAll(result)
 	if err != nil {

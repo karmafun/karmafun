@@ -119,8 +119,8 @@ func TestTransferAnnotations_WithLocalAndInjectLocal(t *testing.T) {
 	req := require.New(t)
 
 	configAnnotations := map[string]string{
-		utils.FunctionAnnotationLocalConfig: "true",
-		utils.FunctionAnnotationInjectLocal: "true",
+		utils.FunctionAnnotationLocalConfig: utils.TrueValue,
+		utils.FunctionAnnotationInjectLocal: utils.TrueValue,
 		utils.FunctionAnnotationKind:        "Secret",
 		utils.FunctionAnnotationApiVersion:  "v1",
 		utils.FunctionAnnotationPath:        "output.yaml",
@@ -307,7 +307,7 @@ func TestConcat_EarlyStop(t *testing.T) {
 	}
 
 	// Take only first 2 elements
-	var result []int
+	result := make([]int, 0, 2)
 	for v := range utils.Concat(seq1, seq2) {
 		result = append(result, v)
 		if len(result) == 2 {

@@ -1,6 +1,19 @@
 # Karmafun Development Guide for AI Agents
 
-<!-- cSpell: words builtinplugintype stringifier containerizable nfpms -->
+<!-- cSpell: words builtinplugintype stringifier containerizable nfpms lunwind subtests -->
+
+### Responses, Documentation and comments style rules (Required)
+
+Drop: articles (a/an/the), filler (just/really/basically/actually/simply),
+pleasantries (sure/certainly/of course/happy to), hedging. Fragments OK. Short
+synonyms (big not extensive, fix not "implement a solution for"). Technical
+terms exact. Code blocks unchanged. Errors quoted exact.
+
+Pattern: `[thing] [action] [reason]. [next step].`
+
+Not: "Sure! I'd be happy to help you with that. The issue you're experiencing is
+likely caused by..." Yes: "Bug in auth middleware. Token expiry check use `<`
+not `<=`. Fix:"
 
 ## Project Overview
 
@@ -9,6 +22,9 @@ Karmafun is a
 providing a set of KRM (Kubernetes Resource Model) Functions for in-place
 transformations in kustomize projects. It wraps the kustomize framework to
 expose additional generators and transformers beyond kustomize's built-ins.
+
+It also provides a `kustomize build` replacement via `karmafun build` that
+provides Go template rendering with values and secrets (SOPS) injection.
 
 ### Core Architecture
 
@@ -44,6 +60,8 @@ Output YAML (modified Items)
     `SopsGenerator`
   - **Transformers**: `ExtendedReplacementTransformer`, `RemoveTransformer`,
     `Extender` (yaml/json/toml/ini support)
+- **`pkg/templates/`** - Go text templates for `karmafun build` and context
+  building from values and secrets files.
 - **`pkg/utils/`** - Shared utilities
   - `constants.go` - Karmafun annotation domains (`config.karmafun.dev`,
     `config.kubernetes.io`)
@@ -140,21 +158,56 @@ support:
 ### Build and Test
 
 ```bash
+# CGO is required on Alpine for KCL plugin
+export CGO_ENABLED=1
+
+# On the development machine (Alpine), use musl target and link with unwind for stack traces
+export CC="zig cc -target x86_64-linux-musl -lunwind"
+
 # Unit tests
-go test ./...
+go test -tags musl,netgo ./...
 
 # Tests with verbose output and coverage
-go test -v -race -covermode=atomic -coverprofile=coverage.out ./...
+go test -v -race -covermode=atomic -coverprofile=coverage.out -tags musl,netgo ./...
 
 # Linting and formatting (uses golangci-lint)
 golangci-lint run --fix
 
 # Single-target build (linux/amd64, APK format)
-goreleaser build --single-target --auto-snapshot --clean
+goreleaser build --config .goreleaser-dev.yml --auto-snapshot --clean
 
 # Multi-platform build (darwin, linux, windows)
 goreleaser --auto-snapshot --skip=publish --clean
+
+# Check code before committing
+pre-commit run --all-files
 ```
+
+### Spelling
+
+The project uses `cspell` for spell checking. Spell is checked via pre-commit
+hooks.
+
+```bash
+# Includes spell check via pre-commit hooks
+pre-commit run --all-files
+```
+
+[cspell.json](../cspell.json) contains the configuration, including custom
+dictionary entries for project-specific terms (e.g. plugin names, annotations).
+It is important however to keep it minimal. We prefer to add specific terms via
+`// cSpell: words term1 term2` comments in the relevant files instead of adding
+them to the global dictionary, to avoid masking potential typos in other
+contexts.
+
+However, when adding `// cSpell: words` comments, check that the terms are not
+already in `cspell.json` to avoid duplication.
+
+The comment needs to be adapted to the syntax of the file:
+
+- For Go files, use `// cSpell: words term1 term2`
+- For YAML files, use `# cSpell: words term1 term2`
+- For Markdown files, use `<!-- cSpell: words term1 term2 -->`
 
 ### Testing Patterns
 
@@ -167,6 +220,30 @@ Since karmafun interacts with kustomize's internal APIs:
 3. **Mock files**: Use in-memory filesystem or fixtures in `tests/` directory
 4. **Duplicate test detection**: golangci-lint reports duplicate tests - extract
    to helper functions
+
+### Test Duplication Guardrails (Required)
+
+When adding or modifying tests, avoid copy-paste test bodies. Treat this as a
+hard requirement because `golangci-lint` (`dupl`) fails the build.
+
+1. Prefer table-driven tests when only inputs, expected output, or expected
+   error differ.
+2. Extract shared setup into helpers (plugin creation, config loading,
+   ResourceMap construction, transform execution).
+3. Move repeated YAML/config snippets into named constants near the top of the
+   test file.
+4. Keep one-off tests only for truly unique logic branches; if two tests share
+   the same control flow, merge them into one table-driven test with subtests.
+5. For error-path testing, use a single table with `wantErrContains`-style
+   assertions instead of one function per error variant.
+6. Before finishing, run `golangci-lint run --fix` and verify no `dupl` findings
+   remain in edited test files.
+
+Quick check before adding a new test function:
+
+- Can this be a new row in an existing test table?
+- Is setup duplicated from another test in the same file?
+- Is any multiline YAML/config string repeated more than once?
 
 ### Integration Testing
 
@@ -190,8 +267,8 @@ For kustomize:
 
 - The `original/` resources are copied to `applications/` directory.
 - All FunctionConfig in `functions/` are applied at once via `kustomize fn run`.
-- results are compared to `expected/` resources via on ouput normalized via `yq`
-  to ignore ordering and formatting differences.
+- results are compared to `expected/` resources via on output normalized via
+  `yq` to ignore ordering and formatting differences.
 
 For kpt:
 
@@ -293,16 +370,6 @@ KRM (Kubernetes Resource Model) plugin architecture allows:
 - Direct kustomize integration via `kustomize fn run`
 - YAML-native configuration (no CLI flags)
 - Containerizable execution
-
-### Why Factory Pattern for Plugins?
-
-Plugins are instantiated on-demand from GVK (Group/Version/Kind) in
-FunctionConfig:
-
-- Supports both kustomize built-in plugins and custom extensions
-- Allows fallback to local injection if plugin not found
-  (`FunctionAnnotationInjectLocal`)
-- Efficient: Only instantiate plugins actually used
 
 ## Quick Reference
 

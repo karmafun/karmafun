@@ -5,10 +5,9 @@
       "label": "golangci-lint",
       "type": "shell",
       "command": "golangci-lint",
-      //"args": ["run", "--enable-only", "godot"],
       "args": ["run", "--fix"],
-      "linux": {
-        "environment": {
+      "options": {
+        "env": {
           "CGO_ENABLED": "1",
           "CC": "zig cc -target x86_64-linux-musl -lunwind"
         }
@@ -22,11 +21,11 @@
         "owner": "golangci-lint",
         "fileLocation": ["relative", "${workspaceFolder}"],
         "pattern": {
-          "regexp": "^(.*):(\\d+):(\\d+): (.*)$",
+          "regexp": "^(.*):(\\d+):((\\d+):)? (.*)$",
           "file": 1,
           "line": 2,
-          "column": 3,
-          "message": 4
+          "column": 4,
+          "message": 5
         }
       },
       "detail": "Run golangci-lint",
@@ -53,11 +52,11 @@
         "owner": "golangci-lint-fmt",
         "fileLocation": ["relative", "${workspaceFolder}"],
         "pattern": {
-          "regexp": "^(.*):(\\d+):(\\d+): (.*)$",
+          "regexp": "^(.*):(\\d+):((\\d+):)? (.*)$",
           "file": 1,
           "line": 2,
-          "column": 3,
-          "message": 4
+          "column": 4,
+          "message": 5
         }
       },
       "detail": "Run golangci-lint format"
