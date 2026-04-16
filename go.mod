@@ -12,7 +12,7 @@ require (
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/tools v0.44.0
 	gopkg.in/ini.v1 v1.67.1
-	k8s.io/apimachinery v0.35.3
+	k8s.io/apimachinery v0.35.4
 	kcl-lang.io/krm-kcl v0.12.4
 	sigs.k8s.io/kustomize/api v0.21.1
 	sigs.k8s.io/kustomize/kyaml v0.21.1
