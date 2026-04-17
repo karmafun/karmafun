@@ -5,14 +5,14 @@ go 1.25.8
 
 require (
 	github.com/getsops/sops/v3 v3.12.2
-	github.com/go-git/go-git/v5 v5.17.2
+	github.com/go-git/go-git/v5 v5.18.0
 	github.com/go-task/slim-sprig/v3 v3.0.0
 	github.com/lithammer/dedent v1.1.0
 	github.com/spf13/viper v1.21.0
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/tools v0.44.0
 	gopkg.in/ini.v1 v1.67.1
-	k8s.io/apimachinery v0.35.3
+	k8s.io/apimachinery v0.35.4
 	kcl-lang.io/krm-kcl v0.12.4
 	sigs.k8s.io/kustomize/api v0.21.1
 	sigs.k8s.io/kustomize/kyaml v0.21.1
